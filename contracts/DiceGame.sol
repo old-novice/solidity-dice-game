@@ -70,7 +70,7 @@ contract DiceGame {
         totalStakes += msg.value;
         emit PlayerJoined(msg.sender);
 
-        rollDiceFor(msg.sender, 1); // Generate dice roll results for the player
+        rollDiceFor(msg.sender); // Generate dice roll results for the player
     }
 
     // Generate dice roll results for a player
