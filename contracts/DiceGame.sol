@@ -2,51 +2,226 @@
 pragma solidity ^0.8.0;
 
 contract DiceGame {
-    address public owner;
-    uint256 public minimumBet;
-
-    // Event that is emitted when a bet is placed
-    event BetPlaced(address indexed player, uint256 amount, uint256 prediction);
-    // Event that is emitted when a bet is settled
-    event BetSettled(address indexed player, uint256 amount, uint256 prediction, uint256 diceRoll, bool won);
-
-    constructor(uint256 _minimumBet) {
-        owner = msg.sender;
-        minimumBet = _minimumBet;
+    struct Player {
+        uint8[4] diceRolls;
+        uint8 score;
     }
 
-    // Modifier to restrict function calls to only the contract owner
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Only the contract owner can call this function.");
+    address public dealer;
+    mapping(address => Player) public players;
+    address[] public playerAddresses;
+    mapping(address => uint256) public stakes;
+    address public winner;
+    uint256 public totalStakes;
+    uint256 public dealerFeePercent = 15; // Initial dealer fee set to 15%
+    uint256 public startBlock;
+    uint256 public endBlock;
+    bool public gameStarted;
+
+    event GameStarted(uint256 startBlock, uint256 endBlock);
+    event PlayerJoined(address player);
+    event GameEnded(address winner);
+    event DiceRolled(address player, uint8[4] diceRolls, uint8 score);
+    event DealerWithdraw(uint256 amount);
+    event DepositReceived(address from, uint256 amount);
+
+    constructor() {
+        dealer = msg.sender;
+    }
+
+    modifier onlyDealer() {
+        require(msg.sender == dealer, "Only the dealer can call this.");
         _;
     }
 
-    // Function to place a bet
-    function placeBet(uint256 _prediction) external payable {
-        require(msg.value >= minimumBet, "Bet does not meet the minimum bet requirement.");
-        require(_prediction >= 1 && _prediction <= 6, "Prediction must be between 1 and 6.");
-
-        // Emit event for the bet
-        emit BetPlaced(msg.sender, msg.value, _prediction);
-
-        // This is a simplified and insecure way of generating a "random" number
-        uint256 diceRoll = (uint(keccak256(abi.encodePacked(block.timestamp, block.difficulty, msg.sender))) % 6) + 1;
-
-        bool won = diceRoll == _prediction;
-
-        if (won) {
-            // If the player wins, send them twice the amount they bet
-            (bool sent,) = msg.sender.call{value: msg.value * 2}("");
-            require(sent, "Failed to send Ether");
-        }
-
-        // Emit event for bet settlement
-        emit BetSettled(msg.sender, msg.value, _prediction, diceRoll, won);
+    modifier withinGamePeriod() {
+        require(block.number <= endBlock, "The game period has ended.");
+        _;
     }
 
-    // Function to withdraw contract balance (for owner)
-    function withdrawBalance() external onlyOwner {
-        (bool sent,) = owner.call{value: address(this).balance}("");
-        require(sent, "Failed to send Ether");
+    // Function to set the dealer fee percentage, only callable by the dealer
+    function setDealerFeePercent(uint256 _feePercent) external onlyDealer {
+        require(_feePercent < 100, "Fee percent must be less than 100");
+        dealerFeePercent = _feePercent;
+    }
+
+    // Allows anyone to start the game
+    function startGame() external {
+        require(!gameStarted, "Game has already started.");
+        startBlock = block.number;
+        endBlock = startBlock + 20; // Set the end block to current block + 20
+        gameStarted = true;
+        emit GameStarted(startBlock, endBlock);
+    }
+
+    // Players join the game by depositing their stake
+    function joinGame() external payable withinGamePeriod {
+        require(gameStarted, "Game has not started.");
+        require(msg.sender != dealer, "Dealer cannot join the game.");
+        require(
+            players[msg.sender].diceRolls.length != 0,
+            "Player already joined."
+        );
+        require(msg.value > 0, "Stake must be greater than 0");
+
+        players[msg.sender] = Player({diceRolls: [0, 0, 0, 0], score: 0});
+        playerAddresses.push(msg.sender);
+        stakes[msg.sender] = msg.value;
+        totalStakes += msg.value;
+        emit PlayerJoined(msg.sender);
+
+        rollDiceFor(msg.sender, 1); // Generate dice roll results for the player
+    }
+
+    // Generate dice roll results for a player
+    // FIXME: Shoule be replaced with a more secure random number generator, such as Chainlink VRF
+    function rollDiceFor(address playerAddress) internal {
+        uint8[4] memory diceRolls;
+
+        for (uint8 i = 0; i < diceRolls.length; i++) {
+            // Randomly generate dice roll number, range 1 to 6
+            diceRolls[i] = uint8(
+                (uint256(
+                    keccak256(
+                        abi.encodePacked(block.timestamp, playerAddress, i)
+                    )
+                ) % 6) + 1
+            );
+        }
+        uint8 score = calculateScore(diceRolls);
+        // if score is 0, re-roll the dices
+        if (score == 0) {
+            // FIXME: Recursive call may cause stack too deep / Out of gas error
+            rollDiceFor(playerAddress);
+        } else {
+            players[playerAddress].score = score;
+            players[playerAddress].diceRolls = diceRolls;
+            emit DiceRolled(playerAddress, diceRolls, score);
+        }
+    }
+
+    // End the game, determine the winner and finalize payout
+    function endGame() public {
+        require(gameStarted, "Game not in progress.");
+        require(
+            msg.sender == dealer || block.number > endBlock,
+            "Only the dealer can end the game early or wait till the end block."
+        );
+
+        // If there is only one player, they gamble directly against the dealer
+        if (playerAddresses.length == 1 && playerAddresses[0] != dealer) {
+            // The dealer also rolls dice and calculates score
+            rollDiceFor(dealer);
+            uint8 dealerScore = players[dealer].score;
+            uint8 playerScore = players[playerAddresses[0]].score;
+
+            // Decide the winner
+            winner = playerScore > dealerScore ? playerAddresses[0] : dealer;
+        } else {
+            // If there are multiple players, use the original logic to determine the winner
+            uint8 highestScore = 0;
+            for (uint i = 0; i < playerAddresses.length; i++) {
+                if (players[playerAddresses[i]].score > highestScore) {
+                    highestScore = players[playerAddresses[i]].score;
+                    winner = playerAddresses[i];
+                }
+            }
+        }
+
+        // Calculate dealer fee and finalize payout
+        finalizePayout();
+        emit GameEnded(winner);
+
+        // Reset game state
+        resetGame();
+    }
+
+    function finalizePayout() private {
+        uint256 dealerFee = (totalStakes * dealerFeePercent) / 100;
+        uint256 payout = totalStakes - dealerFee;
+
+        if (winner != address(0)) {
+            payable(winner).transfer(payout);
+        } else {
+            // In case of a draw, refund all stakes
+            for (uint i = 0; i < playerAddresses.length; i++) {
+                payable(playerAddresses[i]).transfer(
+                    stakes[playerAddresses[i]]
+                );
+            }
+        }
+    }
+
+    function calculateScore(uint8[4] memory dice) public pure returns (uint8) {
+        // 統計每個點數出現的次數
+        uint8[6] memory counts;
+        for (uint i = 0; i < dice.length; i++) {
+            require(
+                dice[i] >= 1 && dice[i] <= 6,
+                "Dice value must be between 1 and 6"
+            );
+            counts[dice[i] - 1]++;
+        }
+
+        uint8 uniqueValues = 0; // 不重複的點數數量
+        uint8 pairCounts = 0; // 對子出現次數
+        for (uint i = 0; i < counts.length; i++) {
+            if (counts[i] == 4) {
+                return uint8((i + 1) * 4); // 一色
+            } else if (counts[i] == 3) {
+                return 0; // 三顆相同，需要重擲
+            } else if (counts[i] == 2) {
+                pairCounts++;
+                uniqueValues++;
+            } else if (counts[i] > 0) {
+                uniqueValues++;
+            }
+        }
+
+        // 檢查是否為無面
+        if (uniqueValues == 4) {
+            return 0; // 表示需要重擲
+        }
+
+        // 計算剩餘點數
+        uint8 score = 0;
+        for (uint i = 5; ; i--) {
+            if (counts[i] == 2 && pairCounts == 2) {
+                // 兩組對子取其大
+                return uint8((i + 1) * 2);
+            } else if (counts[i] == 1) {
+                // 忽略對子分數
+                score += uint8(i + 1);
+            }
+            if (i == 0) {
+                // When i is equal to 0 and the loop tries to decrement i, it would cause an underflow
+                // To prevent this, we break the loop when i is 0
+                break;
+            }
+        }
+        return score;
+    }
+
+    // Helper function: calculate the maximum of two numbers
+    function max(uint8 a, uint8 b) private pure returns (uint8) {
+        return a > b ? a : b;
+    }
+
+    // Dealer withdraws the fee
+    function withdraw() external onlyDealer {
+        payable(dealer).transfer(address(this).balance);
+    }
+
+    // Allows anyone to deposit to the contract
+    function deposit() external payable {
+        emit DepositReceived(msg.sender, msg.value);
+    }
+
+    // Resets the game state
+    function resetGame() private {
+        gameStarted = false;
+        playerAddresses = new address[](0);
+        winner = address(0);
+        totalStakes = 0;
     }
 }
