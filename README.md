@@ -12,8 +12,10 @@
 
 ## Usage
 1. `truffle console`
-2. `let instance = await DiceGame.deployed()` # Get the instance of the contract
-3. `let accounts = await web3.eth.getAccounts()` # Get the accounts
-4. `instance.placeBet(3, {from: accounts[0], value: web3.utils.toWei("1", "ether")})` # Place a bet with the number 3 of 1 ether, if the number is 3, you will win 2 ethers immediately.
-5. `instance.getPastEvents('allEvents', {fromBlock: 0, toBlock: 'latest'})` # Get all the events, you will see the event `BetPlaced` and `BetSettled`.
-6. `instance.withdrawBalance()` # Withdraw all the balance from the contract.
+1. `let instance = await DiceGame.deployed()`
+1. `let accounts = await web3.eth.getAccounts()`
+1. `instance.startGame({from: accounts[1]})`
+1. `instance.joinGame({from: accounts[1], value: web3.utils.toWei("1", "ether")})`
+1. `instance.joinGame({from: accounts[2], value: web3.utils.toWei("1", "ether")})`
+1. `instance.joinGame({from: accounts[3], value: web3.utils.toWei("1", "ether")})`
+1. `instance.endGame()`
