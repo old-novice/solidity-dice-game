@@ -3,6 +3,9 @@ pragma solidity ^0.8.0;
 
 contract DiceGame {
     struct Player {
+        uint256 joinTime;
+        address playerAddress;
+        uint256 stake;
         uint8[4] diceRolls;
         uint8 score;
     }
@@ -17,6 +20,7 @@ contract DiceGame {
     uint256 public startBlock;
     uint256 public endBlock;
     bool public gameStarted;
+    Player[] public gamePlayers;
 
     event GameStarted(uint256 startBlock, uint256 endBlock);
     event PlayerJoined(address player);
@@ -53,9 +57,8 @@ contract DiceGame {
         gameStarted = true;
         emit GameStarted(startBlock, endBlock);
     }
-
     // Players join the game by depositing their stake
-    function joinGame() external payable withinGamePeriod {
+    function joinGame(uint8[4] memory diceRolls) external payable withinGamePeriod {
         require(gameStarted, "Game has not started.");
         require(msg.sender != dealer, "Dealer cannot join the game.");
         require(
@@ -64,26 +67,42 @@ contract DiceGame {
         );
         require(msg.value > 0, "Stake must be greater than 0");
 
-        players[msg.sender] = Player({diceRolls: [0, 0, 0, 0], score: 0});
+        players[msg.sender] = Player({joinTime: block.timestamp, playerAddress: msg.sender, stake: msg.value, diceRolls: diceRolls, score: 0});
+        gamePlayers.push(players[msg.sender]);
         playerAddresses.push(msg.sender);
         stakes[msg.sender] = msg.value;
         totalStakes += msg.value;
         emit PlayerJoined(msg.sender);
 
-        rollDiceFor(msg.sender); // Generate dice roll results for the player
+        // check if msg.rollDice has value
+        if (diceRolls[0] != 0) {
+            uint8 score = calculateScore(diceRolls);
+            players[msg.sender].score = score;
+            players[msg.sender].diceRolls = diceRolls;
+            emit DiceRolled(msg.sender, diceRolls, score);
+        }
+        else {
+            rollDiceFor(msg.sender); // Generate dice roll results for the player
+        }
+    }
+
+    function getPlayers() public view returns (Player[] memory) {
+        return gamePlayers;
     }
 
     // Generate dice roll results for a player
     // FIXME: Shoule be replaced with a more secure random number generator, such as Chainlink VRF
     function rollDiceFor(address playerAddress) internal {
         uint8[4] memory diceRolls;
+        // randomly generate dice rolls for the player
+
 
         for (uint8 i = 0; i < diceRolls.length; i++) {
             // Randomly generate dice roll number, range 1 to 6
             diceRolls[i] = uint8(
                 (uint256(
                     keccak256(
-                        abi.encodePacked(block.timestamp, playerAddress, i)
+                        abi.encodePacked(block.difficulty, block.timestamp, i)
                     )
                 ) % 6) + 1
             );

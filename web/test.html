@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>My first Ethereum web page</title>
+    <script src="https://cdn.jsdelivr.net/npm/web3@4.8.0/dist/web3.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ganache@7.9.2/dist/web/ganache.min.js"></script>
+    <script src="https://unpkg.com/vue@3"></script>
+    <style>
+        html,
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 10pt;
+            font-size: 10pt;
+        }
+
+        table {
+            border-collapse: collapse;
+        }
+
+        table,
+        th,
+        td {
+            border: 1px solid black;
+        }
+
+        th,
+        td {
+            padding: 5px;
+        }
+
+        [v-cloak] {
+            display: none;
+        }
+
+        .player-list {
+            font-family: 'Courier New', Courier, monospace;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app" v-cloak>
+
+        <table>
+            <thead>
+                <tr>
+                    <td>身分</td>
+                    <td>帳號</td>
+                    <td>餘額</td>
+                    <td>操作</td>
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-for="(player,i) in players">
+                    <td>
+                        {{ i === 0 ? '莊家' : '玩家' + i }}
+                    </td>
+                    <td>{{player.account}}</td>
+                    <td>{{player.balance}}</td>
+                    <td>
+                        <div v-show="contractAddress">
+                            <button v-show="i == 0 && !started && !ended" @click="startGame">開局</button>
+                            <button v-show="i == 0 && started" @click="endGame">結算</button>
+                            <button v-show="i > 0 && started" @click="joinGame(player)">下注</button>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+        <p>
+            <button v-show="!contractAddress" @click="deployContract">Deploy</button>
+            Contract Address: {{contractAddress}}
+        </p>
+        <div>
+            <ul class="player-list">
+                <li v-for="player in gamePlayers">
+                    {{player.time}} {{player.account}} 下注 {{player.stake}} ETH [ {{player.dice}} ]
+                </li>
+            </ul>
+        </div>
+    </div>
+    <script>
+        // 產生四個 1-6 隨機數字
+        const throwDice = () => [1, 2, 3, 4].map(() => Math.floor(Math.random() * 6 + 1));
+        // 估算骰子點數：一色 99，十八 12，BG 3，無效組合，其他 4-11
+        const evalDice = (dice) => {
+            const groups = {};
+            // 以點數分組
+            dice.forEach(p => {
+                if (groups[p]) {
+                    groups[p]++;
+                } else {
+                    groups[p] = 1;
+                }
+            });
+            // 點數群組
+            let points = Object.keys(groups);
+            let grpCount = points.length;
+            // 群組數量為 1，四個點數相同，一色
+            if (grpCount == 1) return 99; // 一色
+            // 兩顆點數相同，其餘兩個顯數不同
+            if (grpCount == 3) {
+                // 過濾只有顆數為一的點數
+                let [a, b] = points.filter(p => groups[p] != 2);
+                // 二者相加即為結果
+                return parseInt(a) + parseInt(b);
+            }
+            // 兩對，取數字大者
+            if (grpCount == 2 && groups[points[0]] == 2) {
+                let [a, b] = points;
+                if (a > b) return a * 2;
+                return b * 2;
+            }
+            // 其餘狀況無效，傳回 -1
+            return -1;
+        }
+        function getValidDice() {
+            while (true) {
+                let dice = throwDice();
+                if (evalDice(dice) == -1) continue;
+                return dice;
+            }
+        }
+
+    </script>
+    <script>
+        const options = {};
+        const provider = Ganache.provider(options);
+        const web3 = new Web3(provider);
+        const app = Vue.createApp({
+            data() {
+                return {
+                    accounts: [],
+                    dealer: '',
+                    dealerBalance: 0,
+                    players: [],
+                    contractAddress: null,
+                    abi: [],
+                    bytecode: '',
+                    started: false,
+                    ended: false,
+                    gamePlayers: []
+                }
+            },
+            async created() {
+                this.accounts = await web3.eth.getAccounts();
+                this.dealer = this.accounts[0];
+                for (let i = 0; i < 6; i++) {
+                    this.players.push({
+                        account: this.accounts[i],
+                        balance: 0
+                    });
+                }
+                const self = this;
+                fetch("DiceGame.json").then(response => response.json()).then(info => {
+                    self.abi = info.abi;
+                    self.bytecode = info.bytecode;
+                });
+                this.refreshBalances();
+            },
+            methods: {
+                async deployContract() {
+                    const contract = new web3.eth.Contract(this.abi);
+                    contract.options.data = '0x' + this.bytecode;
+                    const deployTx = contract.deploy();
+                    const deployedContract = await deployTx.send({
+                        from: this.dealer,
+                        gas: 10000000 // await deployTx.estimateGas()
+                    });
+                    this.contractAddress = deployedContract.options.address;
+                    this.refreshBalances();
+                },
+                async startGame() {
+                    const contract = new web3.eth.Contract(this.abi, this.contractAddress);
+                    const tx = contract.methods.startGame();
+                    await tx.send({
+                        from: this.dealer,
+                        gas: await tx.estimateGas()
+                    });
+                    this.started = true;
+                    this.refreshBalances();
+                },
+                async endGame() {
+                    const contract = new web3.eth.Contract(this.abi, this.contractAddress);
+                    const tx = contract.methods.endGame();
+                    await tx.send({
+                        from: this.dealer,
+                        gas: 10000000 //await tx.estimateGas()
+                    }).on('receipt', receipt => {
+                        console.log(receipt);
+                    }).on('error', error => {
+                        console.error(error);
+                    });
+                    this.refreshBalances();
+                    this.started = false;
+                    this.ended = true;
+                },
+                async joinGame(player) {
+                    const contract = new web3.eth.Contract(this.abi, this.contractAddress);
+                    const validDice = getValidDice();
+                    console.log(validDice);
+                    const tx = contract.methods.joinGame(validDice);
+                    await tx.send({
+                        from: player.account,
+                        value: web3.utils.toWei('1', 'ether'),
+
+                        gas: 1000000 //await tx.estimateGas()
+                    }).on('receipt', receipt => {
+                        console.log(receipt);
+                    }).on('error', error => {
+                        console.error(error);
+                    });
+                    this.refreshBalances();
+                    this.showGameStatus();
+                },
+                async showGameStatus() {
+                    const contract = new web3.eth.Contract(this.abi, this.contractAddress);
+                    const players = await contract.methods.getPlayers().call();
+                    console.log(players);
+                    this.gamePlayers = players.map((player, i) => {
+                        return {
+                            time: new Date(parseInt(player.joinTime.toString()) * 1000).toISOString(),
+                            account: player.playerAddress,
+                            stake: web3.utils.fromWei(player.stake, 'ether'),
+                            dice: player.diceRolls.join(',')
+                        };
+                    });
+                },
+                async refreshBalances() {
+                    this.players.map(player => {
+                        web3.eth.getBalance(player.account).then(balance => {
+                            player.balance = web3.utils.fromWei(balance, "ether");
+                        });
+                    });
+                }
+            }
+        });
+        app.mount('#app');
+    </script>
+
+</body>
+
+</html>

@@ -19,3 +19,11 @@
 1. `instance.joinGame({from: accounts[2], value: web3.utils.toWei("1", "ether")})`
 1. `instance.joinGame({from: accounts[3], value: web3.utils.toWei("1", "ether")})`
 1. `instance.endGame()`
+
+
+## Test in Browser
+
+1. `cd web`
+2. `npm install solc fs`
+3. `node .\compile.js` to create DiceGame.json
+4. run test.html
