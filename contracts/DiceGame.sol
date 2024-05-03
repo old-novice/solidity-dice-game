@@ -58,7 +58,7 @@ contract DiceGame {
         emit GameStarted(startBlock, endBlock);
     }
     // Players join the game by depositing their stake
-    function joinGame(uint8[4] memory diceRolls) external payable withinGamePeriod {
+    function joinGame() external payable withinGamePeriod {
         require(gameStarted, "Game has not started.");
         require(msg.sender != dealer, "Dealer cannot join the game.");
         require(
@@ -67,23 +67,13 @@ contract DiceGame {
         );
         require(msg.value > 0, "Stake must be greater than 0");
 
-        players[msg.sender] = Player({joinTime: block.timestamp, playerAddress: msg.sender, stake: msg.value, diceRolls: diceRolls, score: 0});
+        players[msg.sender] = Player({joinTime: block.timestamp, playerAddress: msg.sender, stake: msg.value, diceRolls: [0,0,0,0], score: 0});
         gamePlayers.push(players[msg.sender]);
         playerAddresses.push(msg.sender);
         stakes[msg.sender] = msg.value;
         totalStakes += msg.value;
         emit PlayerJoined(msg.sender);
-
-        // check if msg.rollDice has value
-        if (diceRolls[0] != 0) {
-            uint8 score = calculateScore(diceRolls);
-            players[msg.sender].score = score;
-            players[msg.sender].diceRolls = diceRolls;
-            emit DiceRolled(msg.sender, diceRolls, score);
-        }
-        else {
-            rollDiceFor(msg.sender); // Generate dice roll results for the player
-        }
+        rollDiceFor(msg.sender); // Generate dice roll results for the player
     }
 
     function getPlayers() public view returns (Player[] memory) {
@@ -91,18 +81,20 @@ contract DiceGame {
     }
 
     // Generate dice roll results for a player
-    // FIXME: Shoule be replaced with a more secure random number generator, such as Chainlink VRF
     function rollDiceFor(address playerAddress) internal {
+        _rollDiceFor(playerAddress, 0); // Start recursion with counter at 0
+    }
+    function _rollDiceFor(address playerAddress, uint8 counter) internal {
+        // Increment the recursion counter
+        counter++;
+
         uint8[4] memory diceRolls;
         // randomly generate dice rolls for the player
-
-
         for (uint8 i = 0; i < diceRolls.length; i++) {
-            // Randomly generate dice roll number, range 1 to 6
             diceRolls[i] = uint8(
                 (uint256(
                     keccak256(
-                        abi.encodePacked(block.difficulty, block.timestamp, i)
+                        abi.encodePacked(block.timestamp, playerAddress, i, counter)
                     )
                 ) % 6) + 1
             );
@@ -110,8 +102,7 @@ contract DiceGame {
         uint8 score = calculateScore(diceRolls);
         // if score is 0, re-roll the dices
         if (score == 0) {
-            // FIXME: Recursive call may cause stack too deep / Out of gas error
-            rollDiceFor(playerAddress);
+            _rollDiceFor(playerAddress, counter); // Recursive call with incremented counter
         } else {
             players[playerAddress].score = score;
             players[playerAddress].diceRolls = diceRolls;

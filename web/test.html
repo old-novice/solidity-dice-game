@@ -198,9 +198,7 @@
                 },
                 async joinGame(player) {
                     const contract = new web3.eth.Contract(this.abi, this.contractAddress);
-                    const validDice = getValidDice();
-                    console.log(validDice);
-                    const tx = contract.methods.joinGame(validDice);
+                    const tx = contract.methods.joinGame();
                     await tx.send({
                         from: player.account,
                         value: web3.utils.toWei('1', 'ether'),
