@@ -12,7 +12,7 @@ contract DiceGameTest {
 
         // Test case 1: All dice have the same value (一色)
         dice = [6, 6, 6, 6];
-        expectedScore = 24;
+        expectedScore = 255;
         Assert.equal(diceGame.calculateScore(dice), expectedScore, "Incorrect score for test case 1");
 
         // Test case 2: Three dice have the same value (需要重擲)

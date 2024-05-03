@@ -6,6 +6,7 @@ contract DiceGame {
         uint256 joinTime;
         address playerAddress;
         uint256 stake;
+        uint256 payout;
         uint8[4] diceRolls;
         uint8 score;
     }
@@ -13,9 +14,6 @@ contract DiceGame {
     address public dealer;
     mapping(address => Player) public players;
     address[] public playerAddresses;
-    mapping(address => uint256) public stakes;
-    address public winner;
-    uint256 public totalStakes;
     uint256 public dealerFeePercent = 15; // Initial dealer fee set to 15%
     uint256 public startBlock;
     uint256 public endBlock;
@@ -24,9 +22,8 @@ contract DiceGame {
 
     event GameStarted(uint256 startBlock, uint256 endBlock);
     event PlayerJoined(address player);
-    event GameEnded(address winner);
+    event GameEnded(address player, uint256 payout);
     event DiceRolled(address player, uint8[4] diceRolls, uint8 score);
-    event DealerWithdraw(uint256 amount);
     event DepositReceived(address from, uint256 amount);
 
     constructor() {
@@ -52,10 +49,23 @@ contract DiceGame {
     // Allows anyone to start the game
     function startGame() external {
         require(!gameStarted, "Game has already started.");
+        require(
+            address(this).balance >= 1,
+            "Contract balance must be at least 1 ether to start the game."
+        );
         startBlock = block.number;
         endBlock = startBlock + 20; // Set the end block to current block + 20
         gameStarted = true;
         emit GameStarted(startBlock, endBlock);
+        // Dealer automatically joins the game
+        players[dealer] = Player({
+            joinTime: block.timestamp,
+            playerAddress: dealer,
+            stake: 0,
+            payout: 0,
+            diceRolls: [0, 0, 0, 0],
+            score: 0
+        });
     }
     // Players join the game by depositing their stake
     function joinGame() external payable withinGamePeriod {
@@ -65,15 +75,23 @@ contract DiceGame {
             players[msg.sender].diceRolls.length != 0,
             "Player already joined."
         );
-        require(msg.value > 0, "Stake must be greater than 0");
+        require(
+            msg.value > 0 ether && msg.value <= 0.1 ether,
+            "Stake must be greater than 0 and less than or equal to 0.1 ether."
+        );
+        require(playerAddresses.length < 10, "Player limit reached.");
 
-        players[msg.sender] = Player({joinTime: block.timestamp, playerAddress: msg.sender, stake: msg.value, diceRolls: [0,0,0,0], score: 0});
+        players[msg.sender] = Player({
+            joinTime: block.timestamp,
+            playerAddress: msg.sender,
+            stake: msg.value,
+            payout: 0,
+            diceRolls: [0, 0, 0, 0],
+            score: 0
+        });
         gamePlayers.push(players[msg.sender]);
         playerAddresses.push(msg.sender);
-        stakes[msg.sender] = msg.value;
-        totalStakes += msg.value;
         emit PlayerJoined(msg.sender);
-        rollDiceFor(msg.sender); // Generate dice roll results for the player
     }
 
     function getPlayers() public view returns (Player[] memory) {
@@ -94,7 +112,12 @@ contract DiceGame {
             diceRolls[i] = uint8(
                 (uint256(
                     keccak256(
-                        abi.encodePacked(block.timestamp, playerAddress, i, counter)
+                        abi.encodePacked(
+                            block.timestamp,
+                            playerAddress,
+                            i,
+                            counter
+                        )
                     )
                 ) % 6) + 1
             );
@@ -118,47 +141,45 @@ contract DiceGame {
             "Only the dealer can end the game early or wait till the end block."
         );
 
-        // If there is only one player, they gamble directly against the dealer
-        if (playerAddresses.length == 1 && playerAddresses[0] != dealer) {
-            // The dealer also rolls dice and calculates score
-            rollDiceFor(dealer);
-            uint8 dealerScore = players[dealer].score;
-            uint8 playerScore = players[playerAddresses[0]].score;
+        // Roll dice for all players and the dealer
+        for (uint i = 0; i < playerAddresses.length; i++) {
+            rollDiceFor(playerAddresses[i]);
+        }
+        rollDiceFor(dealer);
 
-            // Decide the winner
-            winner = playerScore > dealerScore ? playerAddresses[0] : dealer;
-        } else {
-            // If there are multiple players, use the original logic to determine the winner
-            uint8 highestScore = 0;
-            for (uint i = 0; i < playerAddresses.length; i++) {
-                if (players[playerAddresses[i]].score > highestScore) {
-                    highestScore = players[playerAddresses[i]].score;
-                    winner = playerAddresses[i];
-                }
+        // Decide payouts by comparing scores between the dealer and each player
+        uint8 dealerScore = players[dealer].score;
+
+        for (uint i = 0; i < playerAddresses.length; i++) {
+            uint8 playerScore = players[playerAddresses[i]].score;
+            if (playerScore > dealerScore) {
+                // If score is same, dealer wins
+                // Player wins against the dealer, calculate payout
+                players[playerAddresses[i]].payout =
+                    players[playerAddresses[i]].stake *
+                    2;
+            } else {
+                players[playerAddresses[i]].payout = 0; // no payout
             }
         }
 
-        // Calculate dealer fee and finalize payout
+        // Calculate and finalize payouts
         finalizePayout();
-        emit GameEnded(winner);
 
         // Reset game state
         resetGame();
     }
 
     function finalizePayout() private {
-        uint256 dealerFee = (totalStakes * dealerFeePercent) / 100;
-        uint256 payout = totalStakes - dealerFee;
+        for (uint i = 0; i < playerAddresses.length; i++) {
+            uint256 payout = players[playerAddresses[i]].payout;
 
-        if (winner != address(0)) {
-            payable(winner).transfer(payout);
-        } else {
-            // In case of a draw, refund all stakes
-            for (uint i = 0; i < playerAddresses.length; i++) {
-                payable(playerAddresses[i]).transfer(
-                    stakes[playerAddresses[i]]
-                );
+            if (payout > 0) {
+                uint256 dealerFee = (payout * dealerFeePercent) / 100;
+                uint256 netPayout = payout - dealerFee;
+                payable(playerAddresses[i]).transfer(netPayout);
             }
+            emit GameEnded(playerAddresses[i], payout);
         }
     }
 
@@ -177,7 +198,7 @@ contract DiceGame {
         uint8 pairCounts = 0; // 對子出現次數
         for (uint i = 0; i < counts.length; i++) {
             if (counts[i] == 4) {
-                return uint8((i + 1) * 4); // 一色
+                return uint8(255); // 一色
             } else if (counts[i] == 3) {
                 return 0; // 三顆相同，需要重擲
             } else if (counts[i] == 2) {
@@ -230,8 +251,10 @@ contract DiceGame {
     // Resets the game state
     function resetGame() private {
         gameStarted = false;
+        // Reset player data
+        for (uint i = 0; i < playerAddresses.length; i++) {
+            delete players[playerAddresses[i]];
+        }
         playerAddresses = new address[](0);
-        winner = address(0);
-        totalStakes = 0;
     }
 }
