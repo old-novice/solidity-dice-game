@@ -13,6 +13,11 @@ const input = {
     language: 'Solidity',
     sources: sources,
     settings: {
+        optimizer: {
+            enabled: true,
+            runs: 200
+        },        
+        evmVersion: 'istanbul', // 0.8.19
         outputSelection: {
             '*': {
                 '*': [ '*' ]
@@ -21,6 +26,7 @@ const input = {
     }
 }; 
 const output = JSON.parse(solc.compile(JSON.stringify(input)));
+console.log(output);
 const contractInfo = {
     abi: output.contracts[solName][solName].abi,
     bytecode: output.contracts[solName][solName].evm.bytecode.object

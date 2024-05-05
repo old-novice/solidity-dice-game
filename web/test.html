@@ -49,6 +49,11 @@
                     <td>帳號</td>
                     <td>餘額</td>
                     <td>操作</td>
+                    <td>時間</td>
+                    <td>押注</td>
+                    <td>點數</td>
+                    <td>得分</td>
+                    <td>輸贏</td>
                 </tr>
             </thead>
             <tbody>
@@ -60,10 +65,26 @@
                     <td>{{player.balance}}</td>
                     <td>
                         <div v-show="contractAddress">
-                            <button v-show="i == 0 && !started && !ended" @click="startGame">開局</button>
-                            <button v-show="i == 0 && started" @click="endGame">結算</button>
+                            <button v-show="i == 0 && !deposited" @click="deposit">儲金</button>
+                            <button v-show="i == 0 && (!started || ended) && deposited" @click="startGame">開局</button>
+                            <button v-show="i == 0 && started" @click="endGame">擲骰子</button>
                             <button v-show="i > 0 && started" @click="joinGame(player)">下注</button>
                         </div>
+                    </td>
+                    <td>
+                        {{player.time}}
+                    </td>
+                    <td>
+                        {{player.stake}}
+                    </td>
+                    <td>
+                        {{player.dice}}
+                    </td>
+                    <td>
+                        {{player.score}}
+                    </td>
+                    <td>
+                        {{player.result}}
                     </td>
                 </tr>
             </tbody>
@@ -72,13 +93,7 @@
             <button v-show="!contractAddress" @click="deployContract">Deploy</button>
             Contract Address: {{contractAddress}}
         </p>
-        <div>
-            <ul class="player-list">
-                <li v-for="player in gamePlayers">
-                    {{player.time}} {{player.account}} 下注 {{player.stake}} ETH [ {{player.dice}} ]
-                </li>
-            </ul>
-        </div>
+
     </div>
     <script>
         // 產生四個 1-6 隨機數字
@@ -125,8 +140,10 @@
 
     </script>
     <script>
+        const gasLimit = 3000000;
         const options = {};
-        const provider = Ganache.provider(options);
+        //const provider = Ganache.provider(options);
+        const provider = new Web3.providers.HttpProvider("http://localhost:7545");
         const web3 = new Web3(provider);
         const app = Vue.createApp({
             data() {
@@ -138,9 +155,9 @@
                     contractAddress: null,
                     abi: [],
                     bytecode: '',
+                    deposited: false,
                     started: false,
                     ended: false,
-                    gamePlayers: []
                 }
             },
             async created() {
@@ -149,7 +166,12 @@
                 for (let i = 0; i < 6; i++) {
                     this.players.push({
                         account: this.accounts[i],
-                        balance: 0
+                        balance: 0,
+                        time: '',
+                        stake: '',
+                        dice: '',
+                        score: '',
+                        result: ''
                     });
                 }
                 const self = this;
@@ -166,69 +188,134 @@
                     const deployTx = contract.deploy();
                     const deployedContract = await deployTx.send({
                         from: this.dealer,
-                        gas: 10000000 // await deployTx.estimateGas()
+                        gas: gasLimit
+                        //gas: await deployTx.estimateGas() * 10
                     });
                     this.contractAddress = deployedContract.options.address;
                     this.refreshBalances();
                 },
+                async deposit() {
+                    const contract = new web3.eth.Contract(this.abi, this.contractAddress);
+                    const tx = contract.methods.deposit();
+                    try {
+                        await tx.send({
+                            from: this.dealer,
+                            value: web3.utils.toWei('1', 'ether'),
+                            gas: gasLimit
+                        });
+                        this.deposited = true;
+                        this.refreshBalances();
+                    }
+                    catch (error) {
+                        console.error(error);
+                    }
+                },
                 async startGame() {
                     const contract = new web3.eth.Contract(this.abi, this.contractAddress);
-                    const tx = contract.methods.startGame();
-                    await tx.send({
-                        from: this.dealer,
-                        gas: await tx.estimateGas()
-                    });
-                    this.started = true;
-                    this.refreshBalances();
+                    tx = contract.methods.startGame();
+                    try {
+                        await tx.send({
+                            from: this.dealer,
+                            gas: gasLimit
+                        });
+                        this.started = true;
+                        this.ended = false;
+                        this.players.map(player => {
+                            player.time = '';
+                            player.stake = '';
+                            player.dice = '';
+                            player.score = '';
+                            player.result = '';
+                        });
+                        this.refreshBalances();
+                    }
+                    catch (error) {
+                        console.error(error);
+                    }
                 },
                 async endGame() {
                     const contract = new web3.eth.Contract(this.abi, this.contractAddress);
                     const tx = contract.methods.endGame();
-                    await tx.send({
-                        from: this.dealer,
-                        gas: 10000000 //await tx.estimateGas()
-                    }).on('receipt', receipt => {
-                        console.log(receipt);
-                    }).on('error', error => {
+                    try {
+                        await tx.send({
+                            from: this.dealer,
+                            gas: gasLimit
+                        });
+                        this.refreshBalances();
+                        this.started = false;
+                        this.ended = true;
+                        this.showGameStatus();
+                    }
+                    catch (error) {
                         console.error(error);
-                    });
-                    this.refreshBalances();
-                    this.started = false;
-                    this.ended = true;
+                    }
                 },
                 async joinGame(player) {
                     const contract = new web3.eth.Contract(this.abi, this.contractAddress);
                     const tx = contract.methods.joinGame();
-                    await tx.send({
-                        from: player.account,
-                        value: web3.utils.toWei('1', 'ether'),
-
-                        gas: 1000000 //await tx.estimateGas()
-                    }).on('receipt', receipt => {
-                        console.log(receipt);
-                    }).on('error', error => {
+                    try {
+                        await tx.send({
+                            from: player.account,
+                            value: web3.utils.toWei("0.1", 'ether'),
+                            gas: gasLimit //await tx.estimateGas()
+                        });
+                        this.refreshBalances();
+                        this.showGameStatus();
+                    }
+                    catch (error) {
                         console.error(error);
-                    });
-                    this.refreshBalances();
-                    this.showGameStatus();
+                    }
                 },
                 async showGameStatus() {
                     const contract = new web3.eth.Contract(this.abi, this.contractAddress);
-                    const players = await contract.methods.getPlayers().call();
-                    console.log(players);
-                    this.gamePlayers = players.map((player, i) => {
-                        return {
-                            time: new Date(parseInt(player.joinTime.toString()) * 1000).toISOString(),
-                            account: player.playerAddress,
-                            stake: web3.utils.fromWei(player.stake, 'ether'),
-                            dice: player.diceRolls.join(',')
+                    const gamePlayers = await contract.methods.getPlayers().call();
+                    console.log(gamePlayers);
+                    const self = this;
+                    let dealerBalance = 0;
+                    const dealerPlayer = self.players[0];
+                    const delearScore = dealerPlayer.score;
+                    gamePlayers.map((player, i) => {
+                        const found = self.players.find(p => p.account == player.playerAddress);
+                        if (found) {
+                            if (player.account != self.dealer) {
+                                found.time = new Date(parseInt(player.joinTime.toString()) * 1000).toISOString();
+                                found.stake = parseFloat(web3.utils.fromWei(player.stake, 'ether')).toFixed(3);
+                            }
+                            if (self.ended) {
+                                if (player.score == 0n) // 通殺或通賠
+                                {
+                                    if (delearScore >= 12) {
+                                        found.result = `莊家通殺! 損失 ${found.stake} ETH`;
+                                        dealerBalance += parseFloat(found.stake);
+                                    } else {
+                                        found.result = `莊家通賠。獲利 ${found.stake} ETH`;
+                                        dealerBalance -= parseFloat(found.stake);
+                                    }
+                                }
+                                else {
+                                    found.dice = player.diceRolls.join(',');
+                                    found.score = player.score;
+                                    found.payout = web3.utils.fromWei(player.payout, 'ether');
+
+                                    if (player.payout == 0) {
+                                        found.result = `殺! 損失 ${found.stake} ETH`;
+                                        dealerBalance += parseFloat(found.stake);
+                                    } else if (player.stake == player.payout) {
+                                        found.result = `平手。退回 ${found.stake} ETH`;
+                                    } else {
+                                        found.result = `贏! 獲利 ${found.stake} ETH`;
+                                        dealerBalance -= parseFloat(found.stake);
+                                    }
+                                }
+                            }
                         };
                     });
+                    dealerPlayer.result = `莊家損益: ${dealerBalance.toFixed(3)} ETH`;
                 },
                 async refreshBalances() {
                     this.players.map(player => {
                         web3.eth.getBalance(player.account).then(balance => {
-                            player.balance = web3.utils.fromWei(balance, "ether");
+                            player.balance = parseFloat(web3.utils.fromWei(balance, "ether")).toFixed(3);
                         });
                     });
                 }

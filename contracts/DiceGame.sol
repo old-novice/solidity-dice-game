@@ -18,6 +18,7 @@ contract DiceGame {
     uint256 public startBlock;
     uint256 public endBlock;
     bool public gameStarted;
+    bool public gameEnded;
     Player[] public gamePlayers;
 
     event GameStarted(uint256 startBlock, uint256 endBlock);
@@ -56,6 +57,9 @@ contract DiceGame {
         startBlock = block.number;
         endBlock = startBlock + 20; // Set the end block to current block + 20
         gameStarted = true;
+        if (gameEnded) {
+            resetGame();
+        }
         emit GameStarted(startBlock, endBlock);
         // Dealer automatically joins the game
         players[dealer] = Player({
@@ -67,6 +71,7 @@ contract DiceGame {
             score: 0
         });
     }
+
     // Players join the game by depositing their stake
     function joinGame() external payable withinGamePeriod {
         require(gameStarted, "Game has not started.");
@@ -80,7 +85,7 @@ contract DiceGame {
             "Stake must be greater than 0 and less than or equal to 0.1 ether."
         );
         require(playerAddresses.length < 10, "Player limit reached.");
-
+        
         players[msg.sender] = Player({
             joinTime: block.timestamp,
             playerAddress: msg.sender,
@@ -140,34 +145,54 @@ contract DiceGame {
             msg.sender == dealer || block.number > endBlock,
             "Only the dealer can end the game early or wait till the end block."
         );
-
-        // Roll dice for all players and the dealer
-        for (uint i = 0; i < playerAddresses.length; i++) {
-            rollDiceFor(playerAddresses[i]);
-        }
+        
+        // Roll dice for the dealer first
         rollDiceFor(dealer);
 
         // Decide payouts by comparing scores between the dealer and each player
         uint8 dealerScore = players[dealer].score;
 
-        for (uint i = 0; i < playerAddresses.length; i++) {
-            uint8 playerScore = players[playerAddresses[i]].score;
-            if (playerScore > dealerScore) {
-                // If score is same, dealer wins
-                // Player wins against the dealer, calculate payout
-                players[playerAddresses[i]].payout =
-                    players[playerAddresses[i]].stake *
-                    2;
-            } else {
-                players[playerAddresses[i]].payout = 0; // no payout
+        // if dice score is 3 (BG) or more than 12 (十八/一色)
+        // no need to roll dice for players
+        if (dealerScore <= 3 || dealerScore >= 12) {
+            for (uint i = 0; i < playerAddresses.length; i++) {
+                players[playerAddresses[i]].payout = 
+                    dealerScore <= 3 ? 0 : players[playerAddresses[i]].stake * 2;
             }
         }
+        else {
+            // Roll dice for all players and the dealer
+            for (uint i = 0; i < playerAddresses.length; i++) {
+                rollDiceFor(playerAddresses[i]);
+            }          
+            for (uint i = 0; i < playerAddresses.length; i++) {
+                uint8 playerScore = players[playerAddresses[i]].score;
+                if (playerScore > dealerScore) {
+                    // If score is same, dealer wins
+                    // Player wins against the dealer, calculate payout
+                    players[playerAddresses[i]].payout =
+                        players[playerAddresses[i]].stake *
+                        2;
+                } else if (playerScore == dealerScore) {
+                    // If score is same, player get back the stake
+                    players[playerAddresses[i]].payout = players[playerAddresses[i]].stake; 
+                } else {
+                    players[playerAddresses[i]].payout = 0; // no payout
+                }
+            }
+        }
+
+        // update gamePlayers
+        for (uint i = 0; i < playerAddresses.length; i++) {
+            gamePlayers[i] = players[playerAddresses[i]];
+        }
+        gamePlayers.push(players[dealer]);
 
         // Calculate and finalize payouts
         finalizePayout();
 
-        // Reset game state
-        resetGame();
+        gameEnded = true;
+        gameStarted = false;
     }
 
     function finalizePayout() private {
@@ -250,11 +275,12 @@ contract DiceGame {
 
     // Resets the game state
     function resetGame() private {
-        gameStarted = false;
         // Reset player data
         for (uint i = 0; i < playerAddresses.length; i++) {
             delete players[playerAddresses[i]];
         }
+        // clear gamePlayers
+        delete gamePlayers;
         playerAddresses = new address[](0);
     }
 }
