@@ -7,18 +7,18 @@ contract DiceGame {
         address playerAddress;
         uint256 stake;
         uint256 payout;
+        uint8[4][] diceHistory;
         uint8[4] diceRolls;
         uint8 score;
     }
-
+    enum State { Created, Started, Ended }
+    State public state;
     address public dealer;
     mapping(address => Player) public players;
     address[] public playerAddresses;
     uint256 public dealerFeePercent = 15; // Initial dealer fee set to 15%
     uint256 public startBlock;
     uint256 public endBlock;
-    bool public gameStarted;
-    bool public gameEnded;
     Player[] public gamePlayers;
 
     event GameStarted(uint256 startBlock, uint256 endBlock);
@@ -41,25 +41,35 @@ contract DiceGame {
         _;
     }
 
+    modifier checkState(State _state, string memory message) {
+        require(state == _state, message);
+        _;
+    }
+    modifier notState(State _state, string memory message) {
+        require(state != _state, message);
+        _;
+    }
+
     // Function to set the dealer fee percentage, only callable by the dealer
     function setDealerFeePercent(uint256 _feePercent) external onlyDealer {
         require(_feePercent < 100, "Fee percent must be less than 100");
         dealerFeePercent = _feePercent;
     }
 
+
+
     // Allows anyone to start the game
-    function startGame() external {
-        require(!gameStarted, "Game has already started.");
+    function startGame() notState(State.Started, "Game has already started.") external {
         require(
             address(this).balance >= 1,
             "Contract balance must be at least 1 ether to start the game."
         );
         startBlock = block.number;
         endBlock = startBlock + 20; // Set the end block to current block + 20
-        gameStarted = true;
-        if (gameEnded) {
+        if (state == State.Ended) {
             resetGame();
         }
+        state = State.Started;
         emit GameStarted(startBlock, endBlock);
         // Dealer automatically joins the game
         players[dealer] = Player({
@@ -67,17 +77,17 @@ contract DiceGame {
             playerAddress: dealer,
             stake: 0,
             payout: 0,
+            diceHistory: new uint8[4][](0),
             diceRolls: [0, 0, 0, 0],
             score: 0
         });
     }
 
     // Players join the game by depositing their stake
-    function joinGame() external payable withinGamePeriod {
-        require(gameStarted, "Game has not started.");
+    function joinGame() checkState(State.Started, "Game has not started.") external payable withinGamePeriod {
         require(msg.sender != dealer, "Dealer cannot join the game.");
         require(
-            players[msg.sender].diceRolls.length != 0,
+            players[msg.sender].stake == 0,
             "Player already joined."
         );
         require(
@@ -91,6 +101,7 @@ contract DiceGame {
             playerAddress: msg.sender,
             stake: msg.value,
             payout: 0,
+            diceHistory: new uint8[4][](0),
             diceRolls: [0, 0, 0, 0],
             score: 0
         });
@@ -130,6 +141,7 @@ contract DiceGame {
         uint8 score = calculateScore(diceRolls);
         // if score is 0, re-roll the dices
         if (score == 0) {
+            players[playerAddress].diceHistory.push(diceRolls);
             _rollDiceFor(playerAddress, counter); // Recursive call with incremented counter
         } else {
             players[playerAddress].score = score;
@@ -139,8 +151,7 @@ contract DiceGame {
     }
 
     // End the game, determine the winner and finalize payout
-    function endGame() public {
-        require(gameStarted, "Game not in progress.");
+    function endGame() checkState(State.Started, "Game not in progress.") public {
         require(
             msg.sender == dealer || block.number > endBlock,
             "Only the dealer can end the game early or wait till the end block."
@@ -183,16 +194,16 @@ contract DiceGame {
         }
 
         // update gamePlayers
-        for (uint i = 0; i < playerAddresses.length; i++) {
-            gamePlayers[i] = players[playerAddresses[i]];
-        }
+        delete gamePlayers;
         gamePlayers.push(players[dealer]);
+        for (uint i = 0; i < playerAddresses.length; i++) {
+            gamePlayers.push(players[playerAddresses[i]]);
+        }
 
         // Calculate and finalize payouts
         finalizePayout();
 
-        gameEnded = true;
-        gameStarted = false;
+        state = State.Ended;
     }
 
     function finalizePayout() private {

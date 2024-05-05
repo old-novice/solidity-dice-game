@@ -2,20 +2,31 @@
 <html>
 
 <head>
-    <title>My first Ethereum web page</title>
+    <title>區塊鏈十八仔模擬測試</title>
     <script src="https://cdn.jsdelivr.net/npm/web3@4.8.0/dist/web3.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/ganache@7.9.2/dist/web/ganache.min.js"></script>
     <script src="https://unpkg.com/vue@3"></script>
     <style>
         html,
-        body {
-            font-family: Arial, sans-serif;
-            font-size: 10pt;
-            font-size: 10pt;
+        body,
+        table {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 10.5pt;
         }
 
         table {
             border-collapse: collapse;
+            width: 960px;
+        }
+
+        thead td {
+            background-color: #ddd;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        tr {
+            min-height: 25px;
         }
 
         table,
@@ -27,73 +38,200 @@
         th,
         td {
             padding: 5px;
+
+            &.W {
+                color: red;
+            }
+
+            &.L {
+                color: green;
+            }
+        }
+
+        td.account-info {
+            background-color: #eee;
+        }
+
+        .balance,
+        .button {
+            float: right;
+            margin-right: 4px;
+        }
+
+        .stake,
+        .dice {
+            text-align: center;
+        }
+
+        .balance {
+            font-weight: bold;
+        }
+
+        .score {
+            text-align: center;
+            font-size: 11pt;
+            font-weight: bold;
+        }
+
+        .error {
+            color: red;
+            font-weight: bold;
         }
 
         [v-cloak] {
             display: none;
         }
 
-        .player-list {
-            font-family: 'Courier New', Courier, monospace;
+        .dice {
+            &.invalid {
+                opacity: 0.35;
+            }
+
+            &.valid {
+                margin-top: 4px;
+            }
+
+            span {
+                display: inline-block;
+                width: 20px;
+                height: 20px;
+                margin-right: 2px;
+            }
+
+            .p1 {
+                background-image: url('imgs/dice1.svg');
+            }
+
+            .p2 {
+                background-image: url('imgs/dice2.svg');
+            }
+
+            .p3 {
+                background-image: url('imgs/dice3.svg');
+            }
+
+            .p4 {
+                background-image: url('imgs/dice4.svg');
+            }
+
+            .p5 {
+                background-image: url('imgs/dice5.svg');
+            }
+
+            .p6 {
+                background-image: url('imgs/dice6.svg');
+            }
+        }
+
+        #app {
+            position: relative;
+
+            .overlay {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(255, 255, 255, 0.8);
+                z-index: 1000;
+
+                .loader {
+                    border: 5px solid #f3f3f3;
+                    border-top: 5px solid #3498db;
+                    border-radius: 50%;
+                    width: 40px;
+                    height: 40px;
+                    animation: spin 2s linear infinite;
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    margin-top: -60px;
+                    margin-left: -60px;
+                }
+            }
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
     </style>
 </head>
 
 <body>
+    <h3>
+        區塊鏈十八仔模擬測試
+    </h3>
     <div id="app" v-cloak>
-
+        <div v-show="busy" class="overlay">
+            <div class="loader">
+            </div>
+        </div>
         <table>
             <thead>
                 <tr>
-                    <td>身分</td>
-                    <td>帳號</td>
-                    <td>餘額</td>
-                    <td>操作</td>
-                    <td>時間</td>
-                    <td>押注</td>
-                    <td>點數</td>
-                    <td>得分</td>
-                    <td>輸贏</td>
+                    <td style="width: 120px"></td>
+                    <td style="width: 180px;">時間</td>
+                    <td style="width: 50px;">押注</td>
+                    <td style="width: 100px;">點數</td>
+                    <td style="width: 50px;">得分</td>
+                    <td style="width: 420px;">輸贏</td>
                 </tr>
             </thead>
-            <tbody>
-                <tr v-for="(player,i) in players">
-                    <td>
+            <tbody v-for="(player,i) in players">
+                <tr>
+                    <td rowspan="2">
                         {{ i === 0 ? '莊家' : '玩家' + i }}
-                    </td>
-                    <td>{{player.account}}</td>
-                    <td>{{player.balance}}</td>
-                    <td>
-                        <div v-show="contractAddress">
+                        <span v-show="contractAddress" class="button">
                             <button v-show="i == 0 && !deposited" @click="deposit">儲金</button>
                             <button v-show="i == 0 && (!started || ended) && deposited" @click="startGame">開局</button>
-                            <button v-show="i == 0 && started" @click="endGame">擲骰子</button>
+                            <button v-show="i == 0 && started" @click="endGame">擲骰</button>
                             <button v-show="i > 0 && started" @click="joinGame(player)">下注</button>
-                        </div>
+                        </span>
                     </td>
+                    <td colspan="5" class="account-info">
+                        <span @click="showAccountLogs(player.account)" class="account">
+                            {{player.account}}
+                            </sapn>
+                            <span class="balance">{{player.balance}}</span>
+                    </td>
+                </tr>
+                <tr v-show="player.time">
                     <td>
                         {{player.time}}
                     </td>
-                    <td>
+                    <td class="stake">
                         {{player.stake}}
                     </td>
-                    <td>
-                        {{player.dice}}
+                    <td class="dice">
+                        <div v-for="(dice, idx) in player.dice"
+                            v-html="diceImages(dice, idx == player.dice.length - 1)">
+                        </div>
                     </td>
-                    <td>
+                    <td class="score">
                         {{player.score}}
                     </td>
-                    <td>
+                    <td v-bind:class="player.status">
                         {{player.result}}
                     </td>
                 </tr>
             </tbody>
         </table>
         <p>
-            <button v-show="!contractAddress" @click="deployContract">Deploy</button>
-            Contract Address: {{contractAddress}}
+            <button v-show="!contractAddress" @click="deployContract">部署合約</button>
+            合約地址: {{contractAddress}}
+            <span v-show="contractAddress">
+                合約餘額： {{contractBalance}}
+            </span>
         </p>
-
+        <p class="error">
+            {{errMessage}}
+        </p>
     </div>
     <script>
         // 產生四個 1-6 隨機數字
@@ -140,11 +278,23 @@
 
     </script>
     <script>
+        class Player {
+            constructor(account) {
+                this.account = account;
+                this.balance = 0;
+                this.time = '';
+                this.stake = '';
+                this.dice = '';
+                this.score = '';
+                this.status = ''; // W-贏，L-輸，T-平手
+                this.result = '';
+            }
+        }
         const gasLimit = 3000000;
         const options = {};
-        //const provider = Ganache.provider(options);
-        const provider = new Web3.providers.HttpProvider("http://localhost:7545");
-        const web3 = new Web3(provider);
+        const provider = Ganache.provider(options);
+        //const provider = new Web3.providers.HttpProvider("http://localhost:7545");
+        let web3 = new Web3(provider);
         const app = Vue.createApp({
             data() {
                 return {
@@ -153,26 +303,21 @@
                     dealerBalance: 0,
                     players: [],
                     contractAddress: null,
+                    contractBalance: '',
                     abi: [],
                     bytecode: '',
                     deposited: false,
                     started: false,
                     ended: false,
+                    busy: false,
+                    errMessage: ''
                 }
             },
             async created() {
                 this.accounts = await web3.eth.getAccounts();
                 this.dealer = this.accounts[0];
                 for (let i = 0; i < 6; i++) {
-                    this.players.push({
-                        account: this.accounts[i],
-                        balance: 0,
-                        time: '',
-                        stake: '',
-                        dice: '',
-                        score: '',
-                        result: ''
-                    });
+                    this.players.push(new Player(this.accounts[i]));
                 }
                 const self = this;
                 fetch("DiceGame.json").then(response => response.json()).then(info => {
@@ -182,35 +327,53 @@
                 this.refreshBalances();
             },
             methods: {
+                setBusy() {
+                    this.busy = true;
+                    this.errMessage = '';
+                },
+                showError(message) {
+                    this.errMessage = message;
+                    this.busy = false;
+                },
+                diceImages(dice, valid) {
+                    return `<div class="dice ${valid ? 'valid' : 'invalid'}">` + dice.split(',').map(d => `<span class="p${d}"></span>`).join('') + `</div>`;
+                },
                 async deployContract() {
+                    this.setBusy();
                     const contract = new web3.eth.Contract(this.abi);
                     contract.options.data = '0x' + this.bytecode;
                     const deployTx = contract.deploy();
-                    const deployedContract = await deployTx.send({
-                        from: this.dealer,
-                        gas: gasLimit
-                        //gas: await deployTx.estimateGas() * 10
-                    });
-                    this.contractAddress = deployedContract.options.address;
-                    this.refreshBalances();
+                    try {
+                        const deployedContract = await deployTx.send({
+                            from: this.dealer,
+                            gas: gasLimit
+                            //gas: await deployTx.estimateGas() * 10
+                        });
+                        this.contractAddress = deployedContract.options.address;
+                        this.refreshBalances();
+                    } catch (error) {
+                        this.showError(error);
+                    }
                 },
                 async deposit() {
+                    this.setBusy();
                     const contract = new web3.eth.Contract(this.abi, this.contractAddress);
                     const tx = contract.methods.deposit();
                     try {
                         await tx.send({
                             from: this.dealer,
-                            value: web3.utils.toWei('1', 'ether'),
+                            value: web3.utils.toWei('10', 'ether'),
                             gas: gasLimit
                         });
                         this.deposited = true;
                         this.refreshBalances();
                     }
                     catch (error) {
-                        console.error(error);
+                        this.showError(error);
                     }
                 },
                 async startGame() {
+                    this.setBusy();
                     const contract = new web3.eth.Contract(this.abi, this.contractAddress);
                     tx = contract.methods.startGame();
                     try {
@@ -220,20 +383,15 @@
                         });
                         this.started = true;
                         this.ended = false;
-                        this.players.map(player => {
-                            player.time = '';
-                            player.stake = '';
-                            player.dice = '';
-                            player.score = '';
-                            player.result = '';
-                        });
+                        this.players = this.players.map(player => new Player(player.account));
                         this.refreshBalances();
                     }
                     catch (error) {
-                        console.error(error);
+                        this.showError(error);
                     }
                 },
                 async endGame() {
+                    this.setBusy();
                     const contract = new web3.eth.Contract(this.abi, this.contractAddress);
                     const tx = contract.methods.endGame();
                     try {
@@ -247,10 +405,11 @@
                         this.showGameStatus();
                     }
                     catch (error) {
-                        console.error(error);
+                        this.showError(error);
                     }
                 },
                 async joinGame(player) {
+                    this.setBusy();
                     const contract = new web3.eth.Contract(this.abi, this.contractAddress);
                     const tx = contract.methods.joinGame();
                     try {
@@ -263,7 +422,7 @@
                         this.showGameStatus();
                     }
                     catch (error) {
-                        console.error(error);
+                        this.showError(error);
                     }
                 },
                 async showGameStatus() {
@@ -273,37 +432,47 @@
                     const self = this;
                     let dealerBalance = 0;
                     const dealerPlayer = self.players[0];
-                    const delearScore = dealerPlayer.score;
+                    let delearScore = 0;
                     gamePlayers.map((player, i) => {
                         const found = self.players.find(p => p.account == player.playerAddress);
                         if (found) {
                             if (player.account != self.dealer) {
-                                found.time = new Date(parseInt(player.joinTime.toString()) * 1000).toISOString();
+                                found.time = new Date(parseInt(player.joinTime.toString()) * 1000).toLocaleString('sv');
                                 found.stake = parseFloat(web3.utils.fromWei(player.stake, 'ether')).toFixed(3);
                             }
                             if (self.ended) {
+                                if (player.account == dealerPlayer.account) {
+                                    declearScore = player.score;
+                                }
                                 if (player.score == 0n) // 通殺或通賠
                                 {
                                     if (delearScore >= 12) {
                                         found.result = `莊家通殺! 損失 ${found.stake} ETH`;
+                                        found.status = 'L';
                                         dealerBalance += parseFloat(found.stake);
                                     } else {
-                                        found.result = `莊家通賠。獲利 ${found.stake} ETH`;
+                                        found.result = `莊家通賠。贏得 ${found.stake} ETH`;
+                                        found.status = 'W';
                                         dealerBalance -= parseFloat(found.stake);
                                     }
                                 }
                                 else {
-                                    found.dice = player.diceRolls.join(',');
+                                    found.dice =
+                                        [...player.diceHistory.map(d => d.join(',')),
+                                        player.diceRolls.join(',')];
                                     found.score = player.score;
                                     found.payout = web3.utils.fromWei(player.payout, 'ether');
 
                                     if (player.payout == 0) {
-                                        found.result = `殺! 損失 ${found.stake} ETH`;
+                                        found.result = `落敗! 損失 ${found.stake} ETH`;
+                                        found.status = 'L';
                                         dealerBalance += parseFloat(found.stake);
                                     } else if (player.stake == player.payout) {
-                                        found.result = `平手。退回 ${found.stake} ETH`;
+                                        found.result = `平手。退還 ${found.stake} ETH`;
+                                        found.status = 'T';
                                     } else {
-                                        found.result = `贏! 獲利 ${found.stake} ETH`;
+                                        found.result = `獲勝! 贏得 ${found.stake} ETH`;
+                                        found.status = 'W';
                                         dealerBalance -= parseFloat(found.stake);
                                     }
                                 }
@@ -311,6 +480,8 @@
                         };
                     });
                     dealerPlayer.result = `莊家損益: ${dealerBalance.toFixed(3)} ETH`;
+                    dealerPlayer.status = dealerBalance > 0 ? 'W' : dealerBalance == 0 ? 'T' : 'L';
+                    this.busy = false;
                 },
                 async refreshBalances() {
                     this.players.map(player => {
@@ -318,6 +489,15 @@
                             player.balance = parseFloat(web3.utils.fromWei(balance, "ether")).toFixed(3);
                         });
                     });
+                    if (this.contractAddress) {
+                        web3.eth.getBalance(this.contractAddress).then(balance => {
+                            this.contractBalance = parseFloat(web3.utils.fromWei(balance, "ether")).toFixed(3);
+                        });
+                    }
+                    this.busy = false;
+                },
+                async showAccountLogs(account) {
+                    // TODO: query transaction logs (including internal transactions)
                 }
             }
         });
