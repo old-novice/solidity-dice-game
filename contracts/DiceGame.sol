@@ -22,7 +22,7 @@ contract DiceGame {
     Player[] public gamePlayers;
 
     event GameStarted(uint256 startBlock, uint256 endBlock);
-    event PlayerJoined(address player);
+    event PlayerJoined(address player, uint256 stake);
     event GameEnded(address player, uint256 payout);
     event DiceRolled(address player, uint8[4] diceRolls, uint8 score);
     event DepositReceived(address from, uint256 amount);
@@ -107,7 +107,7 @@ contract DiceGame {
         });
         gamePlayers.push(players[msg.sender]);
         playerAddresses.push(msg.sender);
-        emit PlayerJoined(msg.sender);
+        emit PlayerJoined(msg.sender,  msg.value);
     }
 
     function getPlayers() public view returns (Player[] memory) {
@@ -142,6 +142,7 @@ contract DiceGame {
         // if score is 0, re-roll the dices
         if (score == 0) {
             players[playerAddress].diceHistory.push(diceRolls);
+            emit DiceRolled(playerAddress, diceRolls, score);
             _rollDiceFor(playerAddress, counter); // Recursive call with incremented counter
         } else {
             players[playerAddress].score = score;
@@ -168,7 +169,7 @@ contract DiceGame {
         if (dealerScore <= 3 || dealerScore >= 12) {
             for (uint i = 0; i < playerAddresses.length; i++) {
                 players[playerAddresses[i]].payout = 
-                    dealerScore <= 3 ? 0 : players[playerAddresses[i]].stake * 2;
+                    dealerScore >= 12 ? 0 : players[playerAddresses[i]].stake * 2;
             }
         }
         else {
