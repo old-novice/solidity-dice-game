@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Dice Game</title>
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.5.2/dist/web3.min.js"></script>
+    <script src="https://unpkg.com/vue@3"></script>
+    <script src="blockchain-viewer.js"></script>
+    <link href="style.css" rel="stylesheet">
+    <style>
+        html,
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 12px;
+        }
+
+
+        button {
+            margin-left: 2px;
+            margin-right: 2px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <div v-show="busy" class="overlay">
+            <div class="loader">
+            </div>
+        </div>
+        <h2>
+            莊家操作測試
+        </h2>
+        <p v-show="errMessage" style="color: red;">{{errMessage}}</p>
+        <table>
+            <tr>
+                <td style="width: 65px">合約地址</td>
+                <td>{{contractAddress}}
+                    <button v-show="!contractAddress" @click="deployContract">Deploy</button>
+                </td>
+            </tr>
+            <tr>
+                <td>錢包地址</td>
+                <td>{{accountAddress}}</td>
+            </tr>
+            <tr v-show="contractAddress">
+                <td>
+                    功能測試
+                </td>
+                <td>
+                    <div class="buttons">
+                        <label for="depositAmount">儲值金額</label>：
+
+                        <input type="number" id="depositAmount" v-model="depositAmount"  max="10" min="1" step="0.1" />
+                        <button @click="deposit">儲值</button>
+                        <button @click="startGame">開局</button>
+                        <button @click="endGame">擲骰</button>
+                    </div>
+                </td>
+            </tr>
+        </table>
+        <p v-show="contractAddress">
+            <button @click="dumpBlocks">查詢合約執行記錄</button>
+        <table v-show="transactions.length" class="history">
+            <thead>
+                <tr>
+                    <td>區塊</td>
+                    <td>時間</td>
+                    <td>交易雜湊</td>
+                    <td>事件</td>
+                </tr>
+            </thead>
+            <tbody class="entry">
+                <tr v-for="tx in transactions">
+                    <td>{{tx.blockNo}}</td>
+                    <td>{{timeStampToDate(tx.time)}}</td>
+                    <td :title="tx.transactionHash">{{tx.transactionHash.substring(0, 16)}}...</td>
+                    <td class="events">
+                        <div v-for="event in tx.events">
+                            <div class="evt-name"
+                                v-bind:class="{'start':event.name == 'GameStarted', 'end':event.name == 'GameEnded'}">
+                                {{event.name}}</div>
+                            <div v-for="(v, p) in event.data">
+                                * {{p}}: {{v}}
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+        </p>
+    </div>
+    <script>
+        const ethEnabled = async () => {
+            if (window.ethereum) {
+                await window.ethereum.request({ method: 'eth_requestAccounts' });
+                window.web3 = new Web3(window.ethereum);
+                return true;
+            }
+            return false;
+        }
+        const gasLimit = '3000000';
+        var app = Vue.createApp({
+            data() {
+                return {
+                    contractAddress: '',
+                    accountAddress: '',
+                    busy: false,
+                    depositAmount: 1,
+                    errMessage: '',
+                    abi: null,
+                    bytecode: null,
+                    transactions: [],
+                    blockChainViewer: null
+                }
+            },
+            async created() {
+                const self = this;
+                await this.initWeb3();
+                fetch("DiceGame.json").then(response => response.json()).then(info => {
+                    self.abi = info.abi;
+                    self.bytecode = info.bytecode;
+                    if (location.hash) {
+                        self.contractAddress = location.hash.substring(1);
+                        self.blockChainViewer = new blockChainViewer(web3, self.contractAddress, self.abi);
+                    }
+                });
+
+            },
+            methods: {
+                async initWeb3() {
+                    if (!(await ethEnabled())) {
+                        alert("Please install MetaMask to use this dApp!");
+                    }
+                    else {
+                        const accounts = await web3.eth.getAccounts();
+                        this.accountAddress = accounts[0];
+                    }
+                },
+                setBusy() {
+                    this.busy = true;
+                    this.errMessage = '';
+                },
+                showError(message) {
+                    this.errMessage = message;
+                    this.busy = false;
+                },
+                async deployContract() {
+                    this.setBusy();
+                    const contract = new web3.eth.Contract(this.abi);
+                    contract.options.data = '0x' + this.bytecode;
+                    const deployTx = contract.deploy();
+                    try {
+                        const deployedContract = await deployTx.send({
+                            from: this.accountAddress,
+                            gas: gasLimit
+                        });
+                        this.contractAddress = deployedContract.options.address;
+                        this.blockChainViewer = new blockChainViewer(web3, this.contractAddress, this.abi);
+                        this.busy = false;
+                    } catch (error) {
+                        this.showError(error);
+                    }
+                },
+                async deposit() {
+                    this.setBusy();
+                    const contract = new web3.eth.Contract(this.abi, this.contractAddress);
+                    const tx = contract.methods.deposit();
+                    try {
+                        const res = await tx.send({
+                            from: this.accountAddress,
+                            value: web3.utils.toWei(this.depositAmount.toString(), 'ether'),
+                            gas: gasLimit
+                        });
+                        this.busy = false;
+                    }
+                    catch (error) {
+                        this.showError(error);
+                    }
+                },
+                async startGame() {
+                    this.setBusy();
+                    const contract = new web3.eth.Contract(this.abi, this.contractAddress);
+                    tx = contract.methods.startGame();
+                    try {
+                        await tx.send({
+                            from: this.accountAddress,
+                            gas: gasLimit
+                        });
+                        this.busy = false;
+                    }
+                    catch (error) {
+                        this.showError(error);
+                    }
+                },
+                async endGame() {
+                    this.setBusy();
+                    const contract = new web3.eth.Contract(this.abi, this.contractAddress);
+                    const tx = contract.methods.endGame();
+                    try {
+                        const receipt = await tx.send({
+                            from: this.accountAddress,
+                            gas: gasLimit
+                        });
+                        this.busy = false;
+                    }
+                    catch (error) {
+                        this.showError(error);
+                    }
+                },
+                timeStampToDate(timestamp) {
+                    return new Date(parseInt(timestamp.toString()) * 1000).toLocaleString('sv');
+                },
+                async dumpBlocks() {
+                    const viewer = this.blockChainViewer;
+                    if (!viewer) return;
+                    this.transactions = await viewer.getRelatedLogs();
+                }
+            }
+        });
+        var vm = app.mount('#app');
+    </script>
+</body>
+
+</html>

@@ -7,46 +7,13 @@
     <script src="https://cdn.jsdelivr.net/npm/ganache@7.9.2/dist/web/ganache.min.js"></script>
     <script src="https://unpkg.com/vue@3"></script>
     <script src="blockchain-viewer.js"></script>
+    <link href="style.css" rel="stylesheet">
     <style>
         html,
         body,
         table {
             font-family: 'Courier New', Courier, monospace;
             font-size: 10.5pt;
-        }
-
-        table {
-            border-collapse: collapse;
-            width: 960px;
-        }
-
-        thead td {
-            background-color: #ddd;
-            font-weight: bold;
-            text-align: center;
-        }
-
-        tr {
-            min-height: 25px;
-        }
-
-        table,
-        th,
-        td {
-            border: 1px solid black;
-        }
-
-        th,
-        td {
-            padding: 5px;
-
-            &.W {
-                color: red;
-            }
-
-            &.L {
-                color: green;
-            }
         }
 
         td.account-info {
@@ -124,74 +91,11 @@
             }
         }
 
-        .evt-name {
-            font-weight: bold;
-            color: dodgerblue;
 
-            &.start {
-                color: green;
-            }
-
-            &.end {
-                color: red;
-            }
-        }
-
-        .entry {
-            td {
-                text-align: center;
-            }
-
-            td.events {
-                text-align: left;
-            }
-
-            tr:nth-child(even) td {
-                background-color: #eeea;
-            }
-        }
 
         button {
             margin-left: 2px;
             margin-right: 2px;
-        }
-
-        #app {
-            position: relative;
-
-            .overlay {
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background-color: rgba(255, 255, 255, 0.8);
-                z-index: 1000;
-
-                .loader {
-                    border: 5px solid #f3f3f3;
-                    border-top: 5px solid #3498db;
-                    border-radius: 50%;
-                    width: 40px;
-                    height: 40px;
-                    animation: spin 2s linear infinite;
-                    position: absolute;
-                    top: 50%;
-                    left: 50%;
-                    margin-top: -60px;
-                    margin-left: -60px;
-                }
-            }
-        }
-
-        @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
-
-            100% {
-                transform: rotate(360deg);
-            }
         }
     </style>
 </head>
@@ -210,7 +114,7 @@
             <input type="text" v-model="providerUrl" style="width: 120px" />
             <button @click="connectNetwork">連結網路</button>
             <button @click="startSimulator">本地模疑</button>
-            / 
+            /
             <button v-show="!contractAddress && dealer" @click="deployContract">部署合約</button>
             合約地址:
             {{contractAddress}}
@@ -278,7 +182,7 @@
             <button @click="dumpBlocks">查詢合約執行記錄</button>
         </p>
         <p>
-        <table v-show="transactions.length">
+        <table v-show="transactions.length" class="history">
             <thead>
                 <tr>
                     <td>區塊</td>
