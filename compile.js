@@ -5,7 +5,7 @@ const solc = require('solc');
 const solName = 'DiceGame';
 // read file from ../contracts/DiceGame.sol
 // join path
-const solPath = path.resolve(__dirname, '../contracts', solName + '.sol');
+const solPath = path.resolve(__dirname, './contracts', solName + '.sol');
 const source = fs.readFileSync(solPath, 'UTF-8');
 const sources = {};
 sources[solName] = { content: source };
@@ -33,4 +33,4 @@ const contractInfo = {
 };
 console.log(contractInfo);
 // dump contract info as json file
-fs.writeFileSync(solName + '.json', JSON.stringify(contractInfo, null, 2));
+fs.writeFileSync('./frontend/' + solName + '.json', JSON.stringify(contractInfo, null, 2));
