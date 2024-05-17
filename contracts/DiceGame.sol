@@ -61,8 +61,8 @@ contract DiceGame {
     // Allows anyone to start the game
     function startGame() notState(State.Started, "Game has already started.") external {
         require(
-            address(this).balance >= 1,
-            "Contract balance must be at least 1 ether to start the game."
+            address(this).balance >= 0.1 ether,
+            "Contract balance must be at least 0.1 ether to start the game."
         );
         startBlock = block.number;
         endBlock = startBlock + 20; // Set the end block to current block + 20
@@ -91,8 +91,8 @@ contract DiceGame {
             "Player already joined."
         );
         require(
-            msg.value > 0 ether && msg.value <= 0.1 ether,
-            "Stake must be greater than 0 and less than or equal to 0.1 ether."
+            msg.value > 0 ether && msg.value <= 0.01 ether,
+            "Stake must be greater than 0 and less than or equal to 0.01 ether."
         );
         require(playerAddresses.length < 10, "Player limit reached.");
         

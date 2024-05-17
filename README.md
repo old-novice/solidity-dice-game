@@ -1,5 +1,9 @@
 # Dice Game
 
+## Contract Address
+- Sepolia: 0xc816dc97edc16aac8fa1626aaddb6d7532ed2ddc
+- Version: 0.1.0
+
 ## Requisites
 - Truffle
 - Ganache
