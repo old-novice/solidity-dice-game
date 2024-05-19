@@ -28,10 +28,9 @@ await web3.eth.getBalance(instance.address)
 
 ## Test in Browser
 
-1. `cd web`
-2. `npm install solc fs`
-3. `node .\compile.js` to create DiceGame.json
-4. run test.html
+1. `npm install solc fs`
+2. `node .\compile.js` to create DiceGame.json
+3. run `web\test.html
 
 
 ## UML Diagram
