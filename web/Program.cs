@@ -1,11 +1,19 @@
 using BCDG;
+using Microsoft.EntityFrameworkCore;
 
-var reader = new BlockTranRctReader("http://localhost:7545");
-var trans = await reader.GetContractTrans("0x844e84C22b141573Ddc9856cfEBaD5D72048BB8c");
+var contractAddress = "0x844e84C22b141573Ddc9856cfEBaD5D72048BB8c";
 
 var builder = WebApplication.CreateBuilder(args);
-var app = builder.Build();
 
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlite("Data Source=dicegame.db"));
+
+var scope = builder.Services.BuildServiceProvider().CreateScope();
+var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+dbContext.Database.EnsureCreated();
+builder.Services.AddSingleton<DataSyncer>(new DataSyncer(dbContext));
+
+var app = builder.Build();
 
 app.UseFileServer(new FileServerOptions {
     RequestPath = "",
@@ -15,6 +23,17 @@ app.UseFileServer(new FileServerOptions {
     ) 
 });
 
+if (!string.IsNullOrEmpty(contractAddress))
+{
+    app.Services.GetRequiredService<DataSyncer>().StartSync(contractAddress);
+}
+
+
 app.MapGet("/", () => "Hello World!");
+
+app.MapGet("/history", (AppDbContext dbContext) =>
+{
+    return dbContext.BlockTxs.ToList();
+}).Produces<List<BlockChainTrans>>();
 
 app.Run();
