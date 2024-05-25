@@ -1,5 +1,6 @@
 ﻿using Nethereum.ABI.FunctionEncoding.Attributes;
 using Nethereum.Contracts;
+using Nethereum.Hex.HexTypes;
 using Nethereum.Web3;
 using System.Numerics;
 
@@ -20,6 +21,11 @@ namespace BCDG
         public static string ToDiceResult(this List<byte> dicePoints)
         {
             return $"[{string.Join(",", dicePoints)}]";
+        }
+        // 8 digit hex can convert block number range of 20 years
+        public static string To8DigitHex(this HexBigInteger value)
+        {
+            return "0x" + value.Value.ToString("x64").Substring(64 - 8, 8);
         }
 
     }

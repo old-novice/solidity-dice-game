@@ -10,9 +10,6 @@
 		<EmbeddedResource Include="ui\**" />
 	</ItemGroup>
 	<ItemGroup>
-		<None Remove="contracts\DiceGame.abi" />
-	</ItemGroup>
-	<ItemGroup>
 		<EmbeddedResource Include="contracts\DiceGame.abi" />
 	</ItemGroup>
 	<ItemGroup>

@@ -40,13 +40,11 @@ namespace BCDG
     {
         string rpcUrl = "http://localhost:7545";
         Web3 web3;
-        string abi;
         Dictionary<string, EventDecoderBase> eventDecoders;
         public BlockTranRctReader(string  rpcUrl = null!)
         {
             this.rpcUrl = rpcUrl ?? this.rpcUrl;
             web3 = new Web3(this.rpcUrl);
-            abi = new StreamReader(typeof(BlockTranRctReader).Assembly.GetManifestResourceStream("web.contracts.DiceGame.abi")!).ReadToEnd();
             var eventList = new List<EventDecoderBase>()
             {
                 new EventDecoder<DepositReceivedEventDTO>(),
@@ -69,13 +67,12 @@ namespace BCDG
             var s = new DepositReceivedEventDTO().GetSha3Signature();
 
         }
-
-        public async Task<IEnumerable<BlockChainTrans>> GetContractTrans(string contractAddress, BigInteger startBlock)
+        public async Task<IEnumerable<BlockChainTrans>> GetContractTrans(string contractAddress, HexBigInteger startBlock)
         {
             var filter = new Nethereum.RPC.Eth.DTOs.NewFilterInput()
             {
                 Address = [contractAddress],
-                FromBlock = new BlockParameter(new HexBigInteger(startBlock)),
+                FromBlock = new BlockParameter(startBlock),
                 ToBlock = new BlockParameter(await web3.Eth.Blocks.GetBlockNumber.SendRequestAsync())
             };
             var dict = new Dictionary<string, BlockChainTrans>();
@@ -90,14 +87,13 @@ namespace BCDG
                     dict.Add(log.TransactionHash, new BlockChainTrans()
                     {
                         TransactionHash = tranHash,
-                        BlockNumber = log.BlockNumber.Value.ToString(),
+                        BlockNumber = log.BlockNumber.To8DigitHex(),
                         TimeStamp = DateTimeOffset.FromUnixTimeSeconds((long)(block.Timestamp.Value)).DateTime
                     });
 
                     var receipt = await web3.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(log.TransactionHash);
                     var txLogs = receipt.Logs;
                     var blockTrans = dict[tranHash];
-                    Debug.WriteLine($"Transaction {tranHash} {blockTrans.TimeStamp}");
                     foreach (var txLog in txLogs)
                     {
                         var topic = txLog["topics"].Value<JArray>().First().ToString();
@@ -105,7 +101,6 @@ namespace BCDG
                         {
                             var decoder = eventDecoders[topic];
                             var values = decoder.Decode(txLog);
-                            Debug.WriteLine($"Event {decoder.EventName} {values}");
                             blockTrans.AddEvent(new TransEvent(topic, decoder.EventName, values));
                         }
                     }

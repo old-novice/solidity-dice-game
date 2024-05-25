@@ -1,6 +1,8 @@
 table {
+    margin-top: 12px;
     border-collapse: collapse;
-    width: 960px;
+    width: 800px;
+    font-size: 11pt;
 
     thead td {
         background-color: #ddd;
@@ -24,33 +26,184 @@ table {
         &.L {
             color: green;
         }
+
+        &.alt {
+            background-color: #ddd;
+        }
     }
 }
 
-.evt-name {
-    font-weight: bold;
+[v-cloak] {
+    display: none;
+}
+
+.dice {
+
+    &.invalid {
+        opacity: 0.35;
+    }
+
+    &.valid {
+        margin-top: 4px;
+    }
+
+    span {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        margin-right: 2px;
+    }
+
+    .p1 {
+        background-image: url('imgs/dice1.svg');
+    }
+
+    .p2 {
+        background-image: url('imgs/dice2.svg');
+    }
+
+    .p3 {
+        background-image: url('imgs/dice3.svg');
+    }
+
+    .p4 {
+        background-image: url('imgs/dice4.svg');
+    }
+
+    .p5 {
+        background-image: url('imgs/dice5.svg');
+    }
+
+    .p6 {
+        background-image: url('imgs/dice6.svg');
+    }
+
+}
+
+.address {
+    text-decoration: underline;
     color: dodgerblue;
+}
 
-    &.start {
-        color: green;
-    }
+.aln-c {
+    text-align: center;
+}
 
-    &.end {
-        color: red;
+.op-zone {
+    width: 800px;
+    margin: 10px 0;
+    padding: 6px;
+    background-color: #eee;
+
+    .hdr {
+        font-weight: bold;
+        font-size: 12.5pt;
+        margin-bottom: 6px;
     }
 }
 
-.entry {
-    td {
-        text-align: center;
-    }
+input[type=number] {
+    margin-right: 3px;
+    height: 24px;
+    box-sizing: border-box;
+}
 
-    td.events {
-        text-align: left;
-    }
+button,
+select {
+    height: 24px;
+    margin-right: 3px;
+    box-sizing: border-box;
+    vertical-align: middle;
+}
 
-    tr:nth-child(even) td {
-        background-color: #eeea;
+.error {
+    color: red;
+    font-weight: bold;
+}
+
+span.score {
+    display: inline-block;
+    width: 40px;
+    text-align: right;
+}
+
+span.tag {
+    color: white;
+    padding: 2px 4px;
+    border-radius: 4px;
+    margin-right: 4px;
+    opacity: 0.8;
+}
+
+span.ko {
+    background-color: red;
+}
+
+span.over {
+    background-color: black;
+}
+
+span.result {
+    font-weight: bold;
+    border: 1px solid #666;
+    display: inline-block;
+    padding: 1px 4px;
+    margin-left: 6px;
+    width: 30px;
+    text-align: center;
+    border-radius: 2px;
+}
+
+span.win {
+    color: red;
+}
+
+span.lose {
+    color: green;
+}
+
+span.tie {
+    color: blue;
+}
+
+span.total {
+    display: inline-block;
+    width: 30px;
+    padding: 1px 4px;
+    border-radius: 2px;
+    color: white;
+    text-shadow: 1px 1px 1px black;
+}
+
+span.total.win {
+    background-color: brown;
+}
+
+span.total.lose {
+    background-color: darkgreen;
+}
+
+.banner {
+    background-image: url('imgs/DiceIsland.png');
+    background-repeat: no-repeat;
+    height: 150px;
+    width: 800px;
+    box-sizing: border-box;
+    background-color: #3BBAF2;
+    color: #eee;
+    text-shadow: 1px 1px 1px #222;
+
+    .title {
+        text-align: right;
+        padding-top: 6px;
+        padding-right: 80px;
+        font-size: 36pt;
+        font-weight: bolder;
+    }
+    .contract {
+        margin-top: 12px;
+        font-size: 13pt;
+        padding-left: 320px;
     }
 }
 
