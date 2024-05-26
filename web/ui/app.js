@@ -1,13 +1,4 @@
-﻿const ethEnabled = async () => {
-    if (window.ethereum) {
-        await window.ethereum.request({ method: 'eth_requestAccounts' });
-        window.web3 = new Web3(window.ethereum);
-        return true;
-    }
-    return false;
-}
-
-const gasLimit = 3000000;
+﻿const gasLimit = 3000000;
 const app = Vue.createApp({
     data() {
         return {
@@ -40,19 +31,22 @@ const app = Vue.createApp({
             self.bytecode = info.bytecode;
         });
         await this.init();
-        web3 = new Web3(new Web3.providers.HttpProvider(this.providerUrl));
+        if (demoMode) {
+            web3 = new Web3(new Web3.providers.HttpProvider(this.providerUrl));
+        }
         const accounts = await web3.eth.getAccounts();
         this.userAddress = accounts.shift();
         // if userAccount is not the dealer, add it to the accounts back
-        if (this.dealerAddress && this.dealerAddress === this.userAddress) {
+        if (this.dealerAddress && this.dealerAddress != this.userAddress) {
             accounts.unshift(this.userAddress);
         }
         this.accounts = accounts;
         if (accounts.length) {
             this.playerAddress = accounts[0];
         }
-        this.queryHistory();    
-    },    
+        this.queryHistory();
+        document.querySelector('[v-cloak]').removeAttribute('v-cloak');
+    },
     computed: {
         filteredGameLogs() {
             if (this.currGameNumber === '*') {
@@ -73,7 +67,7 @@ const app = Vue.createApp({
         async init() {
             var data = await fetch('/contract').then(response => response.json());
             this.contractAddress = data.contractAddress;
-            this.dealerAddress = data.dealerAddress;  
+            this.dealerAddress = data.dealerAddress;
             this.providerUrl = data.providerUrl;
         },
         async deployContract() {
@@ -87,8 +81,8 @@ const app = Vue.createApp({
                     gas: gasLimit
                 });
                 this.contractAddress = deployedContract.options.address;
-                this.dealerAddress = this.accountAddress;
-                await this.fetch('/contract', {
+                this.dealerAddress = this.userAddress;
+                await fetch('/contract', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -99,7 +93,7 @@ const app = Vue.createApp({
             } catch (error) {
                 this.showError(error);
             }
-        },        
+        },
         async deposit() {
             this.setBusy();
             const contract = new web3.eth.Contract(this.abi, this.contractAddress);
@@ -149,12 +143,11 @@ const app = Vue.createApp({
             catch (error) {
                 this.showError(error);
             }
-        },        
+        },
         async endGame() {
             this.setBusy();
             const contract = new web3.eth.Contract(this.abi, this.contractAddress);
             const tx = contract.methods.endGame();
-            debugger;
             try {
                 const receipt = await tx.send({
                     from: this.userAddress,
@@ -215,7 +208,7 @@ const app = Vue.createApp({
                 if (l.eventLogs?.join('').includes('開局')) {
                     l.rowSpan = gameGroups[l.gameNumber].length;
                     l.gameCount = ++gameCount;
-                    const label =  l.gameNumber == nowTag ? '進行中' : `第 ${l.gameNumber} 局`;
+                    const label = l.gameNumber == nowTag ? '進行中' : `第 ${l.gameNumber} 局`;
                     gameList.push({ number: l.gameNumber, label: `${l.timeStamp} ${label}` });
                 }
                 l.eventLogHtmls = l.eventLogs.map(this.genEventLogHtml);
@@ -233,15 +226,97 @@ const app = Vue.createApp({
         }
     }
 });
-var vm = app.mount('#app');
+var vm;
+
+// detect mode 
+const demoMode = location.search.includes('demo');
+setTimeout(async () => {
+    if (!demoMode) {
+        if (!window.ethereum) {
+            alert('Please install MetaMask!');
+        } else {
+            await window.ethereum.request({ method: 'eth_requestAccounts' });
+            web3 = new Web3(window.ethereum);            
+            vm = app.mount('#app');
+        }
+    }
+    else vm = app.mount('#app');
+}, 0);
 
 var source = new EventSource('/sse');
 source.onmessage = function (event) {
+    if (!vm) return;
     var maxBlockNumber = event.data;
     if (maxBlockNumber > vm.maxBlockNumber) {
         vm.queryHistory();
-    }   
+    }
 };
 source.onerror = function (event) {
     console.error(event);
 };
+
+
+const faces = ['front', 'left', 'bottom', 'top', 'right', 'back'];
+const oppsiteFaces = {
+    front: 'back',
+    right: 'left',
+    back: 'front',
+    left: 'right',
+    top: 'bottom',
+    bottom: 'top'
+};
+
+class DiceCube extends HTMLElement {
+    constructor() {
+        super();
+        this.innerHTML = `
+      <div class="dice-cube">
+        <div class="cube">
+          <div class="cube__face cube__face--front"></div>
+          <div class="cube__face cube__face--back"></div>
+          <div class="cube__face cube__face--right"></div>
+          <div class="cube__face cube__face--left"></div>
+          <div class="cube__face cube__face--top"></div>
+          <div class="cube__face cube__face--bottom"></div>
+        </div>  
+      </div>
+    `;
+        this.face = 'front';
+        this.prevFace = '';
+    }
+    get points() {
+        return faces.indexOf(this.face) + 1;
+    }
+    roll(face) {
+        let cube = this.querySelector('.cube');
+        cube.className = 'cube';
+        cube.classList.add(`show-${face}`);
+        this.prevFace = this.side;
+        this.face = face;
+        return new Promise(resolve => {
+            setTimeout(() => {
+                resolve();
+            }, 2500);
+        });
+    }
+    randomFace() {
+        return faces[Math.floor(Math.random() * faces.length)];
+    }
+    async throw() {
+        let nextFace;
+        do {
+            nextFace = this.randomFace();
+        } while (nextFace === this.face ||
+        nextFace === this.prevFace ||
+            nextFace === oppsiteFaces[this.face]
+        );
+        await this.roll(nextFace);
+    }
+}
+customElements.define('dice-cube', DiceCube);
+function rollDice(force) {
+    if (force || (vm && vm.gameStarted))
+        document.querySelectorAll('dice-cube').forEach(cube => cube.throw());
+}
+rollDice(true);
+setInterval(rollDice, 2500);

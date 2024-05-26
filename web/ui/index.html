@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="utf-8" />
-    <title>區塊鏈西巴島</title>
+    <title>區塊鏈西巴島阿</title>
     <script src="https://cdn.jsdelivr.net/npm/web3@4.8.0/dist/web3.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/ganache@7.9.2/dist/web/ganache.min.js"></script>
     <script src="https://unpkg.com/vue@3"></script>
@@ -11,24 +11,30 @@
 </head>
 
 <body>
-    <div id="app" class="v-cloak">
+    <div class="rolling-dice" v-cloak>
+        <dice-cube></dice-cube>
+        <dice-cube></dice-cube>
+        <dice-cube></dice-cube>
+        <dice-cube></dice-cube>
+    </div>    
+    <div id="app" v-cloak>
         <div v-show="busy" class="overlay">
             <div class="loader">
             </div>
         </div>
         <div class=banner>
-            <div class=title>區塊鏈西巴島</div>
+            <div class=title>區塊鏈西巴島阿</div>
             <div class="contract">
                 <div>
-                    合約地址：{{contractAddress.toLowerCase()}}
+                    合約地址：<span class="mono">{{contractAddress.toLowerCase()}}</span>
                 </div>
                 <div>
-                    莊家帳號：{{dealerAddress.toLowerCase()}}
+                    莊家帳號：<span class="mono">{{dealerAddress.toLowerCase()}}</span>
                 </div>
             </div>
         </div>
-        <div>
-            玩者帳號：{{userAddress.toLowerCase()}}
+        <div class="player-account">
+            玩者帳號：<span class="mono">{{userAddress.toLowerCase()}}</span>
         </div>
         <div v-show="!contractAddress && !dealerAddress" class="op-zone">
             <div class="hdr">合約部署</div>
@@ -41,7 +47,7 @@
             <button @click="startGame()" v-show="!gameStarted">開始遊戲</button>
             <button @click="endGame()" v-show="gameStarted">結束遊戲</button>
         </div>
-        <div v-show="gameStarted" class="op-zone">
+        <div v-show="gameStarted && accounts.length" class="op-zone">
             <div class="hdr">玩家操作</div>
             <select v-model="playerAddress">
                 <option v-for="address in accounts" :value="address" style="font-family: monospace">

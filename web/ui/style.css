@@ -83,6 +83,7 @@ table {
 .address {
     text-decoration: underline;
     color: dodgerblue;
+    font-family: monospace;
 }
 
 .aln-c {
@@ -121,66 +122,74 @@ select {
     font-weight: bold;
 }
 
-span.score {
-    display: inline-block;
-    width: 40px;
-    text-align: right;
-}
 
-span.tag {
-    color: white;
-    padding: 2px 4px;
-    border-radius: 4px;
-    margin-right: 4px;
-    opacity: 0.8;
-}
+div.event {
+    position:  relative;
+    span.score {
+        display: inline-block;
+        width: 40px;
+        text-align: right;
+    }
 
-span.ko {
-    background-color: red;
-}
 
-span.over {
-    background-color: black;
-}
 
-span.result {
-    font-weight: bold;
-    border: 1px solid #666;
-    display: inline-block;
-    padding: 1px 4px;
-    margin-left: 6px;
-    width: 30px;
-    text-align: center;
-    border-radius: 2px;
-}
+    span.ko {
+        background-color: red;
+    }
 
-span.win {
-    color: red;
-}
+    span.over {
+        background-color: black;
+    }
 
-span.lose {
-    color: green;
-}
+    span.result, span.total, span.tag {
+        position: absolute;
+        display: inline-block;
+        width: 40px;
+        right: 3px;
+        top: 3px;
+        padding: 0 4px;
+        box-sizing: border-box;
+        font-weight: bold;
+        text-align: center;
+        border-radius: 2px;        
+    }
 
-span.tie {
-    color: blue;
-}
+    span.tag {
+        color: white;
+        border-radius: 4px;
+        right: 50px;
+        opacity: 0.8;
+    }
 
-span.total {
-    display: inline-block;
-    width: 30px;
-    padding: 1px 4px;
-    border-radius: 2px;
-    color: white;
-    text-shadow: 1px 1px 1px black;
-}
+    span.result {
+        border: 1px solid #666;
 
-span.total.win {
-    background-color: brown;
-}
+    }
 
-span.total.lose {
-    background-color: darkgreen;
+    span.win {
+        color: red;
+    }
+
+    span.lose {
+        color: green;
+    }
+
+    span.tie {
+        color: blue;
+    }
+
+    span.total {
+        color: white;
+        text-shadow: 1px 1px 1px black;
+    }
+
+    span.total.win {
+        background-color: brown;
+    }
+
+    span.total.lose {
+        background-color: darkgreen;
+    }
 }
 
 .banner {
@@ -192,19 +201,30 @@ span.total.lose {
     background-color: #3BBAF2;
     color: #eee;
     text-shadow: 1px 1px 1px #222;
+    position: relative;
 
     .title {
         text-align: right;
         padding-top: 6px;
-        padding-right: 80px;
+        padding-right: 30px;
         font-size: 36pt;
         font-weight: bolder;
     }
+
     .contract {
         margin-top: 12px;
         font-size: 13pt;
-        padding-left: 320px;
+        padding-left: 340px;
+        color: yellow;
     }
+}
+
+span.mono {
+    font-family: monospace;
+    font-size: 11pt;
+}
+.player-account {
+    padding: 6px 0;
 }
 
 #app {
@@ -242,5 +262,111 @@ span.total.lose {
 
     100% {
         transform: rotate(360deg);
+    }
+}
+
+[v-cloak] {
+    display: none;
+}
+
+.rolling-dice {
+    position: absolute;
+    top: 30px;
+    left: 240px;
+    z-index: 999;
+}
+
+:root {
+    --dice-size: 30px;
+    --dice-bg-size: calc(var(--dice-size) * 1.28);
+    --trans-z-face: calc(var(--dice-size) / 2);
+    --trans-z-show: calc(var(--trans-z-face) * -1);
+}
+
+.dice-cube {
+
+    * {
+        box-sizing: border-box;
+    }
+
+    display: inline-block;
+    width: var(--dice-size);
+    height: var(--dice-size);
+    border: 1px solid #CCC;
+    margin: 5px;
+    perspective: calc(var(--dice-size) * 4);
+
+    .cube {
+        width: var(--dice-size);
+        height: var(--dice-size);
+        position: relative;
+        transform-style: preserve-3d;
+        transform: translateZ(var(--trans-z-show));
+        transition: transform 2.5s;
+    }
+
+    .cube.show-front {
+        transform: translateZ(var(--trans-z-show)) rotateY(0deg);
+    }
+
+    .cube.show-right {
+        transform: translateZ(var(--trans-z-show)) rotateY(-90deg);
+    }
+
+    .cube.show-back {
+        transform: translateZ(var(--trans-z-show)) rotateY(-180deg);
+    }
+
+    .cube.show-left {
+        transform: translateZ(var(--trans-z-show)) rotateY(90deg);
+    }
+
+    .cube.show-top {
+        transform: translateZ(var(--trans-z-show)) rotateX(-90deg);
+    }
+
+    .cube.show-bottom {
+        transform: translateZ(var(--trans-z-show)) rotateX(90deg);
+    }
+
+    .cube__face {
+        position: absolute;
+        width: var(--dice-size);
+        height: var(--dice-size);
+        border: 1px solid #444;
+        line-height: var(--dice-size);
+        background-color: white;
+        background-position: center;
+        background-size: var(--dice-bg-size);
+    }
+
+    .cube__face--front {
+        transform: rotateY(0deg) translateZ(var(--trans-z-face));
+        background-image: url(imgs/dice1.svg);
+    }
+
+    .cube__face--right {
+        transform: rotateY(90deg) translateZ(var(--trans-z-face));
+        background-image: url(imgs/dice5.svg);
+    }
+
+    .cube__face--back {
+        transform: rotateY(180deg) translateZ(var(--trans-z-face));
+        background-image: url(imgs/dice6.svg);
+    }
+
+    .cube__face--left {
+        transform: rotateY(-90deg) translateZ(var(--trans-z-face));
+        background-image: url(imgs/dice2.svg);
+    }
+
+    .cube__face--top {
+        transform: rotateX(90deg) translateZ(var(--trans-z-face));
+        background-image: url(imgs/dice4.svg);
+    }
+
+    .cube__face--bottom {
+        transform: rotateX(-90deg) translateZ(var(--trans-z-face));
+        background-image: url(imgs/dice3.svg);
     }
 }

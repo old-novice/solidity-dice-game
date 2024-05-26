@@ -1,4 +1,5 @@
 using BCDG;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.VisualBasic;
@@ -8,10 +9,10 @@ var builder = WebApplication.CreateBuilder(args);
 var dataFolderPath = Path.Combine(builder.Environment.ContentRootPath, "data");
 var dbPath = Path.Combine(dataFolderPath, "dicegame.db");
 AppConstants.Load(builder.Configuration, dataFolderPath);
-if (!AppConstants.ContractSet)
-{
-    AppConstants.Set("0x643ed5b879f3B346422cDDc5460E491bb09d4055", "0x844e84C22b141573Ddc9856cfEBaD5D72048BB8c");
-}
+// if (!AppConstants.ContractSet)
+// {
+//     AppConstants.Set("0x643ed5b879f3B346422cDDc5460E491bb09d4055", "0x844e84C22b141573Ddc9856cfEBaD5D72048BB8c");
+// }
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite($"Data Source={dbPath}"));
@@ -48,12 +49,14 @@ app.MapGet("/contract", () => new {
     AppConstants.DealerAddress,
     providerUrl = AppConstants.RpcUrl
 });
-app.MapPost("/contract", (string dealerAddress, string contractAddress) =>
+app.MapPost("/contract", ([FromBody]System.Text.Json.JsonElement param) =>
 {
+    var contractAddress = param.GetProperty("contractAddress").GetString();
+    var dealerAddress = param.GetProperty("dealerAddress").GetString();
     AppConstants.Set(dealerAddress, contractAddress);
     app.Services.GetRequiredService<DataSyncer>().StartSync();
     return Results.Ok();
-});
+}).DisableAntiforgery();
 app.MapGet("/history", (AppDbContext dbContext) =>
 {
     return dbContext.BlockTxs.ToList();
@@ -84,7 +87,5 @@ app.MapGet("/sse", async (HttpContext ctx, DataSyncer dataSyncer) =>
         await Task.Delay(1000);
     }
 });
-
-
 
 app.Run();

@@ -27,6 +27,9 @@ namespace BCDG
         {
             return "0x" + value.Value.ToString("x64").Substring(64 - 8, 8);
         }
-
+        public static string To8DigitHex(this BigInteger value)
+        {
+            return "0x" + value.ToString("x64").Substring(64 - 8, 8);
+        }
     }
 }

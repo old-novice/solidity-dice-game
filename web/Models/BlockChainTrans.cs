@@ -92,7 +92,7 @@ namespace BCDG
                             break;
                         case nameof(GameStartedEventDTO):
                             var gameStartEvt = evt.GetEventDTO<GameStartedEventDTO>();
-                            yield return $"莊家開局 區塊範圍：[{gameStartEvt.StartBlock}] ~ [{gameStartEvt.EndBlock}]";
+                            yield return $"莊家開局 區塊範圍：[{gameStartEvt.StartBlock.To8DigitHex()}] ~ [{gameStartEvt.EndBlock.To8DigitHex()}]";
                             break;
                         case nameof(PlayerJoinedEventDTO):
                             var playerEvt = evt.GetEventDTO<PlayerJoinedEventDTO>();
