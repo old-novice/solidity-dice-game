@@ -37,6 +37,10 @@ table {
     display: none;
 }
 
+.dealer {
+    background-color: lightblue;
+}
+
 .dice {
 
     &.invalid {
@@ -122,6 +126,14 @@ select {
     font-weight: bold;
 }
 
+span.ganache {
+    margin-left: 12px;
+    font-family: Tahoma;
+    font-weight: normal;
+    img {
+        vertical-align: middle;
+    }
+}
 
 div.event {
     position:  relative;
@@ -129,6 +141,10 @@ div.event {
         display: inline-block;
         width: 40px;
         text-align: right;
+        padding: 2px 4px;
+        &.invalid {
+            display: none;
+        }
     }
 
 
@@ -189,6 +205,10 @@ div.event {
 
     span.total.lose {
         background-color: darkgreen;
+    }
+
+    span.win-lose-amt {
+        font-weight: bold;
     }
 }
 

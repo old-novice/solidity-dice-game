@@ -37,6 +37,15 @@ await web3.eth.getBalance(instance.address)
 3. `node .\compile.js` to create DiceGame.json
 4. run test.html
 
+## Test with ASP.NET Core
+
+1. install [.NET SDK 8](https://dotnet.microsoft.com/en-us/download/dotnet/8.0)
+2. run `node .\compile.js` first to create DiceGame.json
+3. `cd web`
+4. `dotnet watch`, the project will run web and launch web ui
+5. the ui use MetaMask wallet to run test
+5. use `https://locahost:xxxx/ui/index.html?ganache` to connect to Ganache to run test
+
 
 ## UML Diagram
 ![Diagram](./diagram.svg)

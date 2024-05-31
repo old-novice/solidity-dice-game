@@ -16,12 +16,14 @@ const app = Vue.createApp({
             bytecode: null,
             gameStarted: false,
             userAddress: '',
-            depositAmount: 1,
-            betAmount: 0.1,
+            depositAmount: 0.1,
+            betAmount: 0.005,
             errorMessage: '',
             accounts: [],
             playerAddress: '',
-            maxBlockNumber: '00000000'
+            maxBlockNumber: '00000000',
+            contractBalance: '',
+            ganacheMode: false
         }
     },
     async created() {
@@ -31,7 +33,7 @@ const app = Vue.createApp({
             self.bytecode = info.bytecode;
         });
         await this.init();
-        if (demoMode) {
+        if (ganacheMode) {
             web3 = new Web3(new Web3.providers.HttpProvider(this.providerUrl));
         }
         const accounts = await web3.eth.getAccounts();
@@ -159,14 +161,25 @@ const app = Vue.createApp({
                 this.showError(error);
             }
         },
-        genEventLogHtml(log) {
-            log = log.replace(/[@]0x[0-9a-fA-F]{40}/g, (address) => { return `<span class="address" title="${address}">${address.substr(0, 8).toLowerCase()}..</span>` });
+        async getContractBalance() {
+            const balance = await web3.eth.getBalance(this.contractAddress);
+            this.contractBalance = web3.utils.fromWei(balance, 'ether');
+        },
+        genEventLogHtml(log, bets) 
+        {
+            const address = log.match(/[@]0x[0-9a-fA-F]{40}/)?.[0];
+            if (address) {
+                log = log.replace(address, `<span class="address" title="${address}">${address.substr(0, 8).toLowerCase()}..</span>`);
+            }
+            let dealerMark = '';
             if (log.includes('骰')) {
                 const points = log.match(/\[([0-9,]+)\]/)[1];
-                const validMark = log.match(/點數：(\d+)/)[1] != '0' ? 'valid' : 'invalid';
+                const score = parseInt(log.match(/點數：(\d+)/)[1] ?? "0");
+                const validMark = score > 0 ? 'valid' : 'invalid';
+                dealerMark = log.includes('莊家') && score > 0 ? 'dealer' : 'player';
                 const pointHtmls = `<span class="dice ${validMark}">${points.split(',').map(p => `<span class="p${p}"></span>`).join('')}</span>`;
                 log = log.replace(`[${points}]`, pointHtmls);
-                log = log.replace(/點數：(\d+)/g, '<span class="score">$1 點</span>');
+                log = log.replace(/點數：(\d+)/g, `<span class="score ${dealerMark} ${validMark}">$1 點</span>`);
                 log = log.replace(/(十八|一色)/g, '<span class="ko tag">$1</span>');
                 log = log.replace(/(逼嘰)/g, '<span class="over tag">$1</span>');
                 log = log.replace(/(贏)/g, '<span class="win result">$1</span>');
@@ -175,11 +188,27 @@ const app = Vue.createApp({
                 log = log.replace(/(通賠)/g, '<span class="total lose">$1</span>');
                 log = log.replace(/(通殺)/g, '<span class="total win">$1</span>');
             }
+            else if (log.includes('結算')) {
+                const trasnAmt = parseFloat(log.match(/(\d+\.\d+) ETH/)[1]);
+                const betAmt = bets[address] ?? 0;
+                let mark = '無輸贏';
+                let css = 'tie';
+                if (trasnAmt > betAmt) {
+                    mark = '贏'  + betAmt.toFixed(3);
+                    css = 'win';
+                }
+                else if (trasnAmt < betAmt) {
+                    mark = '輸'  + betAmt.toFixed(3);
+                    css = 'lose';
+                }
+                log += ` <span class="win-lose-amt ${css}">${mark}<span>`;
+            }
             return `<div>${log}</div`;
         },
         async queryHistory() {
             this.gameLogs = await fetch('/history').then(response => response.json());
             const gameGroups = {};
+            const betData = {};
             const nowTag = 'Now';
             let maxBlockNumber;
             this.gameLogs.forEach(l => {
@@ -195,6 +224,7 @@ const app = Vue.createApp({
                 if (!l.gameNumber) l.gameNumber = nowTag;
                 if (!gameGroups[l.gameNumber]) {
                     gameGroups[l.gameNumber] = [];
+                    betData[l.gameNumber] = {};
                 }
                 gameGroups[l.gameNumber].push(l);
             });
@@ -211,7 +241,17 @@ const app = Vue.createApp({
                     const label = l.gameNumber == nowTag ? '進行中' : `第 ${l.gameNumber} 局`;
                     gameList.push({ number: l.gameNumber, label: `${l.timeStamp} ${label}` });
                 }
-                l.eventLogHtmls = l.eventLogs.map(this.genEventLogHtml);
+                // collect bet data
+                l.eventLogs.forEach(log => {
+                    if (log.includes('下注')) {
+                        const address = log.match(/[@]0x[0-9a-fA-F]{40}/)[0];
+                        const amount = parseFloat(log.match(/(\d+\.\d+) ETH/)[1]);
+                        betData[l.gameNumber][address] = amount;
+                    }
+                });
+                l.eventLogHtmls = l.eventLogs.map(log => {
+                    return this.genEventLogHtml(log, betData[l.gameNumber]);
+                });
             });
             gameList.reverse();
             gameList.push({ number: '*', label: '所有記錄' })
@@ -222,6 +262,7 @@ const app = Vue.createApp({
                 this.currGameNumber = nowTag;
                 this.gameStarted = true;
             }
+            this.getContractBalance();
             this.busy = false;
         }
     }
@@ -229,18 +270,19 @@ const app = Vue.createApp({
 var vm;
 
 // detect mode 
-const demoMode = location.search.includes('demo');
+const ganacheMode = location.search.includes('ganache');
 setTimeout(async () => {
-    if (!demoMode) {
+    if (!ganacheMode) {
         if (!window.ethereum) {
             alert('Please install MetaMask!');
         } else {
             await window.ethereum.request({ method: 'eth_requestAccounts' });
-            web3 = new Web3(window.ethereum);            
+            web3 = new Web3(window.ethereum);
             vm = app.mount('#app');
         }
     }
     else vm = app.mount('#app');
+    vm.ganacheMode = ganacheMode;
 }, 0);
 
 var source = new EventSource('/sse');

@@ -34,3 +34,4 @@ const contractInfo = {
 console.log(contractInfo);
 // dump contract info as json file
 fs.writeFileSync('./frontend/' + solName + '.json', JSON.stringify(contractInfo, null, 2));
+fs.writeFileSync('./web/ui/' + solName + '.json', JSON.stringify(contractInfo, null, 2));
