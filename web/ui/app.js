@@ -23,7 +23,8 @@ const app = Vue.createApp({
             playerAddress: '',
             maxBlockNumber: '00000000',
             contractBalance: '',
-            ganacheMode: false
+            ganacheMode: false,
+            hexBlockNo: location.search.includes('dec') ? false : true
         }
     },
     async created() {
@@ -37,7 +38,7 @@ const app = Vue.createApp({
             web3 = new Web3(new Web3.providers.HttpProvider(this.providerUrl));
         }
         const accounts = await web3.eth.getAccounts();
-        this.userAddress = accounts.shift();
+        this.userAddress = accounts.shift().toLowerCase();    
         // if userAccount is not the dealer, add it to the accounts back
         if (this.dealerAddress && this.dealerAddress != this.userAddress) {
             accounts.unshift(this.userAddress);
@@ -58,6 +59,14 @@ const app = Vue.createApp({
         }
     },
     methods: {
+        fmtBlockNo(blockNo) {
+            if (!this.hexBlockNo) {
+                return parseInt(blockNo, 16);
+            }
+            else {
+                return blockNo;
+            }
+        },
         setBusy() {
             this.busy = true;
             this.errorMessage = '';
@@ -69,7 +78,7 @@ const app = Vue.createApp({
         async init() {
             var data = await fetch('/contract').then(response => response.json());
             this.contractAddress = data.contractAddress;
-            this.dealerAddress = data.dealerAddress;
+            this.dealerAddress = data.dealerAddress.toLowerCase();
             this.providerUrl = data.providerUrl;
         },
         async deployContract() {
@@ -263,6 +272,11 @@ const app = Vue.createApp({
                 this.gameStarted = true;
             }
             this.getContractBalance();
+            if (!this.hexBlockNo) {
+                this.gameLogs.forEach(l => {
+                    l.blockNumber = parseInt(l.blockNumber, 16);
+                });
+            }
             this.busy = false;
         }
     }

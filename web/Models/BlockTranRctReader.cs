@@ -63,22 +63,31 @@ namespace BCDG
                 .Where(t => t.GetInterfaces().Contains(typeof(IEventDTO)) && !t.Name.Contains("Base"))
                 .Select(t => t.Name)
                 .ToList();
-
             var s = new DepositReceivedEventDTO().GetSha3Signature();
 
         }
-        public async Task<IEnumerable<BlockChainTrans>> GetContractTrans(string contractAddress, HexBigInteger startBlock)
+        const int GET_LOGS_MAX_BLOCK_RANGE = 2000;
+        public async Task<IEnumerable<BlockChainTrans>> GetContractTrans(string contractAddress, HexBigInteger startBlock, CancellationToken token)
         {
+            // cannot exceed max block range
+            token.ThrowIfCancellationRequested();
+            var currBlockNo = await web3.Eth.Blocks.GetBlockNumber.SendRequestAsync();
+            if (currBlockNo.Value - startBlock.Value > GET_LOGS_MAX_BLOCK_RANGE)
+            {
+                startBlock = new HexBigInteger(currBlockNo.Value - GET_LOGS_MAX_BLOCK_RANGE);
+            }
+            token.ThrowIfCancellationRequested();
             var filter = new Nethereum.RPC.Eth.DTOs.NewFilterInput()
             {
                 Address = [contractAddress],
-                FromBlock = new BlockParameter(startBlock),
-                ToBlock = new BlockParameter(await web3.Eth.Blocks.GetBlockNumber.SendRequestAsync())
+                FromBlock = new BlockParameter(new HexBigInteger(startBlock.Value)),
+                ToBlock = new BlockParameter(currBlockNo)
             };
             var dict = new Dictionary<string, BlockChainTrans>();
             var logs = await web3.Eth.Filters.GetLogs.SendRequestAsync(filter);
             foreach (var log in logs)
             {
+                if (token.IsCancellationRequested) break;
                 var block = await web3.Eth.Blocks.GetBlockWithTransactionsByNumber.SendRequestAsync(new BlockParameter(log.BlockNumber));
 
                 var tranHash = log.TransactionHash;
