@@ -60,15 +60,15 @@ namespace BCDG
                 Dictionary<string, string> winLoseRemarks = new Dictionary<string, string>();
                 if (diceEvents.Any())
                 {
-                    var dealerScore = diceEvents.Single(e => e.Player == AppConstants.DealerAddress).Score;
+                    var dealerScore = diceEvents.Single(e => e.Player.ToLower() == AppConstants.DealerAddress).Score;
                     if (dealerScore == 3) winLoseRemarks[AppConstants.DealerAddress] = "通賠";
                     else if (dealerScore >= 12) winLoseRemarks[AppConstants.DealerAddress] = "通殺";
                     else winLoseRemarks[AppConstants.DealerAddress] = "";
-                    foreach (var playerDice in diceEvents.Where(e => e.Player != AppConstants.DealerAddress && e.Score > 0))
+                    foreach (var playerDice in diceEvents.Where(e => e.Player.ToLower() != AppConstants.DealerAddress && e.Score > 0))
                     {
                         var score = playerDice.Score;
                         var remark = score == dealerScore ? "平手" : score > dealerScore ? "贏" : "輸";
-                        winLoseRemarks[playerDice.Player] = remark;
+                        winLoseRemarks[playerDice.Player.ToLower()] = remark;
                     }
                 }
 
@@ -84,6 +84,7 @@ namespace BCDG
                             break;
                         case nameof(DiceRolledEventDTO):
                             var diceEvt = evt.GetEventDTO<DiceRolledEventDTO>();
+                            diceEvt.Player = diceEvt.Player.ToLower();
                             yield return $"{getPlayerType(diceEvt.Player)}擲骰 @{diceEvt.Player} 結果：{diceEvt.DiceRolls.ToDiceResult()} 點數：{diceEvt.Score} {getScoreText(diceEvt.Score)} {(diceEvt.Score > 0 ? winLoseRemarks[diceEvt.Player] : "")}";
                             break;
                         case nameof(GameEndedEventDTO):

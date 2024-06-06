@@ -10,6 +10,7 @@ namespace BCDG
         public string contractAddress;
         private AppDbContext dbContext;
         Timer timer;
+        readonly CancellationTokenSource cts = new();
         BlockTranRctReader reader;
         public DataSyncer(AppDbContext dbContext)
         {
@@ -29,38 +30,46 @@ namespace BCDG
         {
             if (busy) return;
             busy = true;
-            var startBlock = dbContext.BlockTxs.OrderByDescending(t => t.BlockNumber).FirstOrDefault();
-            var startBlockNumber = new HexBigInteger(startBlock?.BlockNumber ?? "0");
-            if (string.IsNullOrEmpty(MaxBlockNumber))
-                MaxBlockNumber = startBlockNumber.To8DigitHex();
-            var blocks = reader.GetContractTrans(contractAddress, startBlockNumber).Result;
-            foreach (var block in blocks.Where(b => b.BlockNumber.CompareTo(startBlock?.BlockNumber ?? "00000000") > 0))
+            try
             {
-                if (block.Events.Any(b => b.EventName == nameof(DiceRolledEventDTO)))
+                var startBlock = dbContext.BlockTxs.OrderByDescending(t => t.BlockNumber).FirstOrDefault();
+                var startBlockNumber = new HexBigInteger(startBlock?.BlockNumber ?? "0");
+                if (string.IsNullOrEmpty(MaxBlockNumber))
+                    MaxBlockNumber = startBlockNumber.To8DigitHex();
+                var blocks = reader.GetContractTrans(contractAddress, startBlockNumber, cts.Token).Result;
+                foreach (var block in blocks.Where(b => b.BlockNumber.CompareTo(startBlock?.BlockNumber ?? "00000000") > 0))
                 {
-                    var range = dbContext.BlockTxs.Where(b => b.GameNumber == "").OrderByDescending(b => b.BlockNumber).ToArray();
-                    // update game number for all blocks in the same game
-                    var gameStartBlock = range.FirstOrDefault(b => b.Events.Any(e => e.EventName == nameof(GameStartedEventDTO)));
-                    if (gameStartBlock != null)
+                    if (block.Events.Any(b => b.EventName == nameof(DiceRolledEventDTO)))
                     {
-                        var gameNumber = gameStartBlock.BlockNumber;
-                        gameStartBlock.GameNumber = gameNumber;
-                        foreach (var b in range.Where(b => b.BlockNumber.CompareTo(gameNumber) > 0))
+                        var range = dbContext.BlockTxs.Where(b => b.GameNumber == "").OrderByDescending(b => b.BlockNumber).ToArray();
+                        // update game number for all blocks in the same game
+                        var gameStartBlock = range.FirstOrDefault(b => b.Events.Any(e => e.EventName == nameof(GameStartedEventDTO)));
+                        if (gameStartBlock != null)
                         {
-                            b.GameNumber = gameNumber;
+                            var gameNumber = gameStartBlock.BlockNumber;
+                            gameStartBlock.GameNumber = gameNumber;
+                            foreach (var b in range.Where(b => b.BlockNumber.CompareTo(gameNumber) > 0))
+                            {
+                                b.GameNumber = gameNumber;
+                            }
+                            block.GameNumber = gameNumber;
                         }
-                        block.GameNumber = gameNumber;
                     }
+                    if (block.BlockNumber.CompareTo(MaxBlockNumber) > 0)
+                        MaxBlockNumber = block.BlockNumber;
+                    dbContext.BlockTxs.Add(block);
+                    dbContext.SaveChanges();
                 }
-                if (block.BlockNumber.CompareTo(MaxBlockNumber) > 0)
-                    MaxBlockNumber = block.BlockNumber;
-                dbContext.BlockTxs.Add(block);
-                dbContext.SaveChanges();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
             }
             busy = false;
         }
         public void StopSync()
         {
+            cts.Cancel();
             timer.Dispose();
         }
 

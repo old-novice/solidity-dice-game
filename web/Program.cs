@@ -24,6 +24,8 @@ builder.Services.AddSingleton<DataSyncer>(new DataSyncer(dbContext));
 
 var app = builder.Build();
 
+CancellationTokenSource cts = new();
+
 //app.UseFileServer(new FileServerOptions {
 //    RequestPath = "",
 //    FileProvider = new Microsoft.Extensions.FileProviders
@@ -84,8 +86,16 @@ app.MapGet("/sse", async (HttpContext ctx, DataSyncer dataSyncer) =>
     {
         await writer.WriteLineAsync($"data: {dataSyncer.MaxBlockNumber.Replace("0x", "")}\n\n");
         await writer.FlushAsync();
-        await Task.Delay(1000);
+        await Task.Delay(1000, cts.Token);
+        cts.Token.ThrowIfCancellationRequested();
     }
+});
+
+app.Lifetime.ApplicationStopping.Register(() =>
+{
+    cts.Cancel();
+    app.Services.GetRequiredService<DataSyncer>().StopSync();
+    scope.Dispose();
 });
 
 app.Run();

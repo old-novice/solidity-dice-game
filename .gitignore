@@ -487,3 +487,4 @@ $RECYCLE.BIN/
 *.swp
 /web/data/dicegame.db*
 /web/data/*.json
+/web/data/*/
